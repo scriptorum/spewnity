@@ -4,7 +4,7 @@ using System.Collections;
 
 namespace Spewnity
 {
-	public static class ExportWithLayers
+	public static class ExportPackagePlus
 	{
 		[MenuItem("Custom/Export Package Plus")]
 		public static void ExportPackage()

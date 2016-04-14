@@ -6,7 +6,7 @@ namespace Spewnity
 	public class LineMup: MonoBehaviour
 	{
 		// align in the x translation axis
-		[MenuItem ("LineMup/Align/Translation X")]
+		[MenuItem ("Spewnity/Align/Translation X")]
 		static void AlignmentTransX()
 		{
 			// execute alignment for the x axis
@@ -14,7 +14,7 @@ namespace Spewnity
 		}
 	
 		// determine if the void can be executed.
-		[MenuItem ("LineMup/Align/Translation X", true)]
+		[MenuItem ("Spewnity/Align/Translation X", true)]
 		static bool ValidateAlignmentTransX()
 		{
 			// only return true if there is a transform in the selection.
@@ -22,7 +22,7 @@ namespace Spewnity
 		}
 	
 		// align in the y translation axis
-		[MenuItem ("LineMup/Align/Translation Y")]
+		[MenuItem ("Spewnity/Align/Translation Y")]
 		static void AlignmentTransY()
 		{
 			// execute alignment for the y axis
@@ -30,7 +30,7 @@ namespace Spewnity
 		}
 	
 		// determine if the void can be executed.
-		[MenuItem ("LineMup/Align/Translation Y", true)]
+		[MenuItem ("Spewnity/Align/Translation Y", true)]
 		static bool ValidateAlignmentTransY()
 		{
 			// only return true if there is a transform in the selection.
@@ -38,7 +38,7 @@ namespace Spewnity
 		}
 	
 		// align in the z translation axis
-		[MenuItem ("LineMup/Align/Translation Z")]
+		[MenuItem ("Spewnity/Align/Translation Z")]
 		static void AlignmentTransZ()
 		{
 			// execute alignment for the z axis
@@ -46,7 +46,7 @@ namespace Spewnity
 		}
 	
 		// determine if the void can be executed.
-		[MenuItem ("LineMup/Align/Translation Z", true)]
+		[MenuItem ("Spewnity/Align/Translation Z", true)]
 		static bool ValidateAlignmentTransZ()
 		{
 			// only return true if there is a transform in the selection.
@@ -54,7 +54,7 @@ namespace Spewnity
 		}
 	
 		// align the rotation
-		[MenuItem ("LineMup/Align/Rotation")]
+		[MenuItem ("Spewnity/Align/Rotation")]
 		static void AlignmentRotation()
 		{
 			// execute alignment in all axes
@@ -62,7 +62,7 @@ namespace Spewnity
 		}
 	
 		// determine if the void can be executed.
-		[MenuItem ("LineMup/Align/Rotation", true)]
+		[MenuItem ("Spewnity/Align/Rotation", true)]
 		static bool ValidateAlignmentRotation()
 		{
 			// only return true if there is a transform in the selection.
@@ -70,7 +70,7 @@ namespace Spewnity
 		}
 	
 		// align in the x scale axis
-		[MenuItem ("LineMup/Align/Scale X")]
+		[MenuItem ("Spewnity/Align/Scale X")]
 		static void AlignmentScaleX()
 		{
 			// execute alignment for the x axis
@@ -78,7 +78,7 @@ namespace Spewnity
 		}
 	
 		// determine if the void can be executed.
-		[MenuItem ("LineMup/Align/Scale X", true)]
+		[MenuItem ("Spewnity/Align/Scale X", true)]
 		static bool ValidateAlignmentScaleX()
 		{
 			// only return true if there is a transform in the selection.
@@ -86,7 +86,7 @@ namespace Spewnity
 		}
 	
 		// align in the y scale axis
-		[MenuItem ("LineMup/Align/Scale Y")]
+		[MenuItem ("Spewnity/Align/Scale Y")]
 		static void AlignmentScaleY()
 		{
 			// execute alignment for the y axis
@@ -94,7 +94,7 @@ namespace Spewnity
 		}
 	
 		// determine if the void can be executed.
-		[MenuItem ("LineMup/Align/Scale Y", true)]
+		[MenuItem ("Spewnity/Align/Scale Y", true)]
 		static bool ValidateAlignmentScaleY()
 		{
 			// only return true if there is a transform in the selection.
@@ -102,7 +102,7 @@ namespace Spewnity
 		}
 	
 		// align in the z scale axis
-		[MenuItem ("LineMup/Align/Scale Z")]
+		[MenuItem ("Spewnity/Align/Scale Z")]
 		static void AlignmentScaleZ()
 		{
 			// execute alignment for the z axis
@@ -110,7 +110,7 @@ namespace Spewnity
 		}
 	
 		// determine if the void can be executed.
-		[MenuItem ("LineMup/Align/Scale Z", true)]
+		[MenuItem ("Spewnity/Align/Scale Z", true)]
 		static bool ValidateAlignmentScaleZ()
 		{
 			// only return true if there is a transform in the selection.
@@ -118,7 +118,7 @@ namespace Spewnity
 		}
 	
 		// distribute in the x translation axis
-		[MenuItem ("LineMup/Distribute/Translation X")]
+		[MenuItem ("Spewnity/Distribute/Translation X")]
 		static void DistributeTransX()
 		{
 			// execute distribution for the x axis
@@ -126,7 +126,7 @@ namespace Spewnity
 		}
 	
 		// determine if the void can be executed.
-		[MenuItem ("LineMup/Distribute/Translation X", true)]
+		[MenuItem ("Spewnity/Distribute/Translation X", true)]
 		static bool ValidateDistributeTransX()
 		{
 			// only return true if there is a transform in the selection.
@@ -134,7 +134,7 @@ namespace Spewnity
 		}
 	
 		// distribute in the y translation axis
-		[MenuItem ("LineMup/Distribute/Translation Y")]
+		[MenuItem ("Spewnity/Distribute/Translation Y")]
 		static void DistributeTransY()
 		{
 			// execute distribution for the y axis
@@ -142,7 +142,7 @@ namespace Spewnity
 		}
 	
 		// determine if the void can be executed.
-		[MenuItem ("LineMup/Distribute/Translation Y", true)]
+		[MenuItem ("Spewnity/Distribute/Translation Y", true)]
 		static bool ValidateDistributeTransY()
 		{
 			// only return true if there is a transform in the selection.
@@ -150,7 +150,7 @@ namespace Spewnity
 		}
 	
 		// distribute in the z translation axis
-		[MenuItem ("LineMup/Distribute/Translation Z")]
+		[MenuItem ("Spewnity/Distribute/Translation Z")]
 		static void DistributeTransZ()
 		{
 			// execute distribution for the z axis
@@ -158,7 +158,7 @@ namespace Spewnity
 		}
 	
 		// determine if the void can be executed.
-		[MenuItem ("LineMup/Distribute/Translation Z", true)]
+		[MenuItem ("Spewnity/Distribute/Translation Z", true)]
 		static bool ValidateDistributeTransZ()
 		{
 			// only return true if there is a transform in the selection.
@@ -166,7 +166,7 @@ namespace Spewnity
 		}
 	
 		// distribute the rotation
-		[MenuItem ("LineMup/Distribute/Rotation")]
+		[MenuItem ("Spewnity/Distribute/Rotation")]
 		static void DistributeRotation()
 		{
 			// execute distribution in all axes
@@ -174,7 +174,7 @@ namespace Spewnity
 		}
 	
 		// determine if the void can be executed.
-		[MenuItem ("LineMup/Distribute/Rotation", true)]
+		[MenuItem ("Spewnity/Distribute/Rotation", true)]
 		static bool ValidateDistributeRotation()
 		{
 			// only return true if there is a transform in the selection.
@@ -182,7 +182,7 @@ namespace Spewnity
 		}
 	
 		// distribute in the x scale axis
-		[MenuItem ("LineMup/Distribute/Scale X")]
+		[MenuItem ("Spewnity/Distribute/Scale X")]
 		static void DistributeScaleX()
 		{
 			// execute distribution for the x axis
@@ -190,7 +190,7 @@ namespace Spewnity
 		}
 	
 		// determine if the void can be executed.
-		[MenuItem ("LineMup/Distribute/Scale X", true)]
+		[MenuItem ("Spewnity/Distribute/Scale X", true)]
 		static bool ValidateDistributeScaleX()
 		{
 			// only return true if there is a transform in the selection.
@@ -198,7 +198,7 @@ namespace Spewnity
 		}
 	
 		// distribute in the y scale axis
-		[MenuItem ("LineMup/Distribute/Scale Y")]
+		[MenuItem ("Spewnity/Distribute/Scale Y")]
 		static void DistributeScaleY()
 		{
 			// execute distribution for the y axis
@@ -206,7 +206,7 @@ namespace Spewnity
 		}
 	
 		// determine if the void can be executed.
-		[MenuItem ("LineMup/Distribute/Scale Y", true)]
+		[MenuItem ("Spewnity/Distribute/Scale Y", true)]
 		static bool ValidateDistributeScaleY()
 		{
 			// only return true if there is a transform in the selection.
@@ -214,7 +214,7 @@ namespace Spewnity
 		}
 	
 		// distribute in the z scale axis
-		[MenuItem ("LineMup/Distribute/Scale Z")]
+		[MenuItem ("Spewnity/Distribute/Scale Z")]
 		static void DistributeScaleZ()
 		{
 			// execute distribution for the z axis
@@ -222,7 +222,7 @@ namespace Spewnity
 		}
 	
 		// determine if the void can be executed.
-		[MenuItem ("LineMup/Distribute/Scale Z", true)]
+		[MenuItem ("Spewnity/Distribute/Scale Z", true)]
 		static bool ValidateDistributeScaleZ()
 		{
 			// only return true if there is a transform in the selection.

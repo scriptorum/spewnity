@@ -6,7 +6,7 @@ namespace Spewnity
 {
 	public static class ExportPackagePlus
 	{
-		[MenuItem("Custom/Export Package Plus")]
+		[MenuItem("Spewnity/Export Package Plus")]
 		public static void ExportPackage()
 		{
 			string[] projectContent = new string[] 

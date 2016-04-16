@@ -1,5 +1,20 @@
 # spewnity
-This is a collection of Unity classes and shaders I've written or assembled primarily for use in game jams. The only original thing here you're probably interested in is the InputController. :)
+This is a collection of Unity classes and shaders I've written or assembled primarily for use in game jams.
+ 
+##InputController
+Event-driven inputs right from the Unity interface.
+
+##SoundManager
+Manage all your audio clips in one place. Supports pitch/volume/pan variations and multiple audio sources.
+
+##Map
+Class for manipulating a 2D map, including enumerating over cells in various traversal orders.
+
+##AutoDestroy
+Delete a game object on start. Useful for setting up guide objects.
+
+##Toolkit
+Miscellaneous mixins and functions.
 
 ### Credits
  - Some shaders from http://forum.unity3d.com/threads/shaders-for-2d-games.71748/ courtesy Dasinf

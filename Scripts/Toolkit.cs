@@ -7,7 +7,8 @@ namespace Spewnity
 	{
 		// Tweens the transform from its current position to endPos in world space
 		// Action triggered at end of tween. Example Action: (t) => Debug.Log("Transform complete!")
-		public static IEnumerator LerpPosition(this Transform tform, Vector3 endPos, float duration, AnimationCurve curve = null, System.Action<Transform> action = null)
+		public static IEnumerator LerpPosition(this Transform tform, Vector3 endPos, float duration, 
+			AnimationCurve curve = null, System.Action<Transform> onComplete = null)
 		{
 			Vector3 startPos = tform.position;
 		
@@ -19,13 +20,14 @@ namespace Spewnity
 				tform.position = Vector3.Lerp(startPos, endPos, (curve == null ? t : curve.Evaluate(t)));
 			}
 		
-			if(action != null)
-				action.Invoke(tform);
+			if(onComplete != null)
+				onComplete.Invoke(tform);
 		}
 
 		// Tweens the transform from its current scale to endScale in world space
 		// Action triggered at end of tween. Example Action: (t) => Debug.Log("Transform complete!")
-		public static IEnumerator LerpScale(this Transform tform, Vector3 endScale, float duration, AnimationCurve curve = null, System.Action<Transform> action = null)
+		public static IEnumerator LerpScale(this Transform tform, Vector3 endScale, float duration, 
+			AnimationCurve curve = null, System.Action<Transform> onComplete = null)
 		{
 			Vector3 startScale = tform.localScale;
 		
@@ -37,8 +39,38 @@ namespace Spewnity
 				tform.localScale = Vector3.Lerp(startScale, endScale, (curve == null ? t : curve.Evaluate(t)));
 			}
 		
-			if(action != null)
-				action.Invoke(tform);
+			if(onComplete != null)
+				onComplete.Invoke(tform);
+		}
+
+		public static IEnumerator LerpColor(this Color startColor, Color endColor, float duration, System.Action<Color> onUpdate,
+			AnimationCurve curve = null, System.Action onComplete = null)
+		{
+			float t = 0;
+			while(t < 1)
+			{
+				yield return null;
+				t += Time.deltaTime / duration;
+				onUpdate(Color.Lerp((Color) startColor, endColor, (curve == null ? t : curve.Evaluate(t))));
+			}
+
+			if(onComplete != null)
+				onComplete.Invoke();
+		}
+
+		public static IEnumerator LerpFloat(this float startValue, float endValue, float duration, System.Action<float> onUpdate, 
+			AnimationCurve curve = null,  System.Action onComplete = null)
+		{
+			float t = 0;
+			while(t < 1)
+			{
+				yield return null;
+				t += Time.deltaTime / duration;
+				onUpdate(Mathf.Lerp(startValue, endValue, (curve == null ? t : curve.Evaluate(t))));
+			}
+
+			if(onComplete != null)
+				onComplete.Invoke();
 		}
 
 		// Snaps the XY component of a Vector3 to a 45 degree angle 
@@ -84,6 +116,11 @@ namespace Spewnity
 		{
 			Debug.Assert(arr.Length > 0);
 			return arr[Random.Range(0, arr.Length)];
+		}
+
+		public static bool CoinFlip()
+		{
+			return (Random.value >= 0.5f);
 		}
 
 		// Swaps two values, just awful, I hate myself for writing it

@@ -154,7 +154,7 @@ namespace Spewnity
 		[Tooltip("Additional options for Axis and DoubleAxis types")]
 		public AxisOptions
 			axisOptions;
-		public Callback callback;
+		public InputCallback callback;
 		[HideInInspector]
 		public InputEvent
 			inputEvent;	// The result of the input, to be passed to the callback
@@ -208,7 +208,7 @@ namespace Spewnity
 	}
 
 	[System.Serializable]
-	public class Callback: UnityEvent<InputEvent>
+	public class InputCallback: UnityEvent<InputEvent>
 	{
 	}
 }

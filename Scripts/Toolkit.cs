@@ -5,7 +5,8 @@ namespace Spewnity
 {
 	public static class Toolkit
 	{
-		// Tweens the transform from its current position to endPos in world space
+		// Tweens the transform from its current position to endPos in world space.
+		// Remember to wrap in a StarCoroutine().
 		// Action triggered at end of tween. Example Action: (t) => Debug.Log("Transform complete!")
 		public static IEnumerator LerpPosition(this Transform tform, Vector3 endPos, float duration, 
 			AnimationCurve curve = null, System.Action<Transform> onComplete = null)
@@ -24,7 +25,8 @@ namespace Spewnity
 				onComplete.Invoke(tform);
 		}
 
-		// Tweens the transform from its current scale to endScale in world space
+		// Tweens the transform from its current scale to endScale in world space.
+		// Remember to wrap in a StarCoroutine().
 		// Action triggered at end of tween. Example Action: (t) => Debug.Log("Transform complete!")
 		public static IEnumerator LerpScale(this Transform tform, Vector3 endScale, float duration, 
 			AnimationCurve curve = null, System.Action<Transform> onComplete = null)
@@ -43,6 +45,8 @@ namespace Spewnity
 				onComplete.Invoke(tform);
 		}
 
+		// Tweens the between two colors. Sends the interpolated color to onUpdate().
+		// Remember to wrap in a StarCoroutine().
 		public static IEnumerator LerpColor(this Color startColor, Color endColor, float duration, System.Action<Color> onUpdate,
 			AnimationCurve curve = null, System.Action onComplete = null)
 		{
@@ -58,6 +62,8 @@ namespace Spewnity
 				onComplete.Invoke();
 		}
 
+		// Tweens the between two float values. Sends the interpolated float to onUpdate().
+		// Remember to wrap in a StarCoroutine().
 		public static IEnumerator LerpFloat(this float startValue, float endValue, float duration, System.Action<float> onUpdate, 
 			AnimationCurve curve = null,  System.Action onComplete = null)
 		{
@@ -90,8 +96,8 @@ namespace Spewnity
 			return q * v3;
 		}
 
-		// Shuffles an array in place
-		public static void Shuffle<T>(this T[] arr)
+		// Shuffles an array in place. Also returns array.
+		public static T[] Shuffle<T>(this T[] arr)
 		{
 			for(int i = arr.Length - 1; i > 0; i--)
 			{
@@ -103,6 +109,7 @@ namespace Spewnity
 					arr[r] = tmp;
 				}
 			}
+			return arr;
 		}
 	
 		public static string GetFullPath(this Transform o)

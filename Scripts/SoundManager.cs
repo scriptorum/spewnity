@@ -12,14 +12,12 @@ namespace Spewnity
 
 		public int maxPoolSize = 32;
 		public int minPoolSize = 1;
-		public float recheckInterval = 0.2f;
 		public AudioMixerGroup output;
 		public Sound[] sounds;
 
 		private Dictionary<string, int> nameToSound = new Dictionary<string, int>();
 		private List<AudioSource> openPool;
 		private List<AudioSource> busyPool;
-		private WaitForSeconds closeSourceCheckDelay;
 
 		[HideInInspector]
 		public bool soundsInitialized = false;
@@ -63,7 +61,6 @@ namespace Spewnity
 			// Set up pool
 			openPool = new List<AudioSource>();
 			busyPool = new List<AudioSource>();
-			closeSourceCheckDelay = new WaitForSeconds(recheckInterval);
 
 			while(getSourceCount() < minPoolSize)
 			{
@@ -94,31 +91,41 @@ namespace Spewnity
 		}
 			
 		// Returns the Sound object associated with the supplied name.
-		Sound getSound(string name)
+		Sound getSound(string soundName)
 		{
-			if(!nameToSound.ContainsKey(name)) throw new UnityException("Cannot play sound '" + name + "': not found");
-			Sound snd = sounds[nameToSound[name]];
-			return snd;
+			if(!nameToSound.ContainsKey(soundName)) throw new UnityException("Cannot find sound named '" + soundName + "'");
+			Sound sound = sounds[nameToSound[soundName]];
+			return sound;
+		}
+
+		// Returns the AudioSource associated with this sound.
+		// Use this to manipulate the AudioSource directly, for example to call PlayOneShot().
+		// Take care if Sound.usePool is true, as the AudioSource will be thrown back into the pool
+		// when the sound is done playing.
+		AudioSource getSource(string soundName)
+		{
+			Sound sound = getSound(soundName);
+			return sound.source;
 		}
 
 		// Plays the Sound associated with the supplied name.
-		public void play(string name)
+		public void play(string name, System.Action<Sound> onComplete = null)
 		{			
-			Sound snd = getSound(name);
+			Sound sound = getSound(name);
 
-			float pitch = snd.pitch + Random.Range(-snd.pitchVariation, snd.pitchVariation);
-			float volume = snd.volume + Random.Range(-snd.volumeVariation, snd.volumeVariation);
-			float pan = snd.pan + Random.Range(-snd.panVariation, snd.panVariation);
+			float pitch = sound.pitch + Random.Range(-sound.pitchVariation, sound.pitchVariation);
+			float volume = sound.volume + Random.Range(-sound.volumeVariation, sound.volumeVariation);
+			float pan = sound.pan + Random.Range(-sound.panVariation, sound.panVariation);
 
-			playAs(snd, pitch, volume, pan, snd.looping);
+			playAs(sound, pitch, volume, pan, sound.looping, onComplete);
 		}
 
-		public void playAs(string name, float pitch = 1.0f, float volume = 1.0f, float pan = 0.0f, bool loop = false)
+		public void playAs(string name, float pitch = 1.0f, float volume = 1.0f, float pan = 0.0f, bool loop = false, System.Action<Sound> onComplete = null)
 		{
-			playAs(getSound(name), pitch, volume, pan, loop);
+			playAs(getSound(name), pitch, volume, pan, loop, onComplete);
 		}
 
-		public void playAs(Sound sound, float pitch = 1.0f, float volume = 1.0f, float pan = 0.0f, bool loop = false)
+		public void playAs(Sound sound, float pitch = 1.0f, float volume = 1.0f, float pan = 0.0f, bool loop = false, System.Action<Sound> onComplete = null)
 		{
 			if(sound.clips.Length <= 0) throw new UnityException("Cannot play sound '" + name + "': no AudioClips defined");
 
@@ -146,24 +153,44 @@ namespace Spewnity
 			sound.source.loop = loop;
 			sound.source.Play();
 			
-			if(sound.usePool) StartCoroutine(closeSourceAfterPlaying(sound.source));
+			if(sound.usePool || onComplete != null) StartCoroutine(onSoundComplete(sound, onComplete));
 		}
 
-		private IEnumerator closeSourceAfterPlaying(AudioSource source)
+		private IEnumerator onSoundComplete(Sound sound, System.Action<Sound> onComplete)
 		{
+			// Wait for sound to (theoretically) be over
+			AudioSource source = sound.source;
 			yield return new WaitForSeconds(source.clip.length);
 
-			while(source.isPlaying) yield return closeSourceCheckDelay;
+			// Notify callback, if supplied
+			if(onComplete != null)
+				onComplete.Invoke(sound);
 
-			busyPool.Remove(source);
-			openPool.Add(source);
+			// Move audio source from busy to open pool
+			if(sound.usePool)
+			{
+				busyPool.Remove(source);
+				openPool.Add(source);
+			}
 		}
 
 		public void stop()
 		{
+			// Stop all sounds from playing
 			foreach(Sound sound in sounds) sound.source.Stop();
+
+			// If using pooling or callbacks, coroutines may still be running - prevent them from finishing
+			StopAllCoroutines();
+
+			// If using pooling, since we stopped the callbacks, audio sources may be falsely listed as busy
+			foreach(AudioSource source in busyPool)
+				openPool.Add(source);
+			busyPool.Clear();
 		}
 
+		// Stops a specific sound from playing. If pooling was used, only stops the last instance
+		// of the sound, and there will be a delay before the AudioSource is released back to the pool.
+		// If callbacks were used during play(), this will not prevent them from happening.
 		public void stop(string name)
 		{
 			Sound sound = getSound(name);
@@ -188,7 +215,6 @@ namespace Spewnity
 
 		[Tooltip("Base volume is 1.0")]
 		public float volume;
-		// lame, this should be initial volume with default of 1.0f
 
 		[Tooltip("Final volume will be adusted randomly +/- this value")]
 		public float volumeVariation;

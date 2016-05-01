@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEngine.Events;
 using Action = System.Action;
 
 namespace Spewnity
@@ -9,6 +10,7 @@ namespace Spewnity
 	{
 		public List<Action> actions = new List<Action>();
 		public bool paused = false;
+		public GameObject selectedGameObject = null;
 
 		public ActionQueue Add(Action action)
 		{
@@ -45,21 +47,36 @@ namespace Spewnity
 			this.paused = true;
 		}
 
+		public void Clear()
+		{
+			actions.Clear();
+		}
+
+		// Returns a qualified, non-null game object, either the supplied parameter (if non-null) or the "selected" game object.
+		private GameObject Qualify(GameObject go)
+		{
+			if(go != null) return go;
+
+			if(selectedGameObject == null) Debug.Log("Action references a null GameObject but selectedGameObject is also null");
+			
+			return selectedGameObject;			
+		}
+
 		/////////// SOME FUNCTIONS THAT ADD PRE-DEFINED ACTIONS
 
 		public ActionQueue Delay(float delaySec)
 		{
 			Add(() =>
 			{
-				this.Pause();
+				Pause();
 				Invoke("Resume", delaySec);
 			});
 			return this;
 		}
 
-		public ActionQueue AddComponent<T>(GameObject go) where T:Component
+		public ActionQueue AddComponent<T>(GameObject go = null) where T:Component
 		{
-			Add(() => go.AddComponent<T>());
+			Add(() => Qualify(go).AddComponent<T>());
 			return this;
 		}
 
@@ -68,8 +85,38 @@ namespace Spewnity
 			Add(() =>
 			{
 				Pause();
-				SoundManager.instance.play(soundName, (snd) => Resume());
+				SoundManager.instance.Play(soundName, (snd) => Resume());
 			});
+			return this;
+		}
+
+		public ActionQueue InvokeEvent(UnityEvent evt)
+		{
+			Add(() => evt.Invoke());
+			return this;
+		}
+
+		// Instantiates a game object and selects it (see Select)
+		public ActionQueue Spawn(GameObject prefab = null)
+		{
+			Add(() => selectedGameObject = (GameObject) 
+				Instantiate(Qualify(prefab)));
+			return this;
+		}
+
+		// Instantiates a game object at a certain position and selects it (see Select)
+		public ActionQueue SpawnAt(Vector3 position, GameObject prefab = null)
+		{
+			Add(() => selectedGameObject = (GameObject) 
+				Instantiate(Qualify(prefab), (Vector3) position, Quaternion.identity));
+			return this;
+		}
+
+		// Selects a game object. You can pass null for any these predefined actions
+		// and it will use the selected game object instead.
+		public ActionQueue Select(GameObject go)
+		{
+			Add(() => selectedGameObject = go);
 			return this;
 		}
 	}

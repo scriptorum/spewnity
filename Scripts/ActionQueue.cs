@@ -24,6 +24,8 @@ namespace Spewnity
 			return this;
 		}
 
+		// Processes all actions in the queue, or until an action causes the queue to pause, 
+		// in which case the queue will resume itself when it's ready.
 		public void Run()
 		{
 			// Run until paused or out of actions
@@ -34,6 +36,11 @@ namespace Spewnity
 				actions.RemoveAt(0);
 				action();
 			}
+		}
+
+		public int Count()
+		{
+			return actions.Count;
 		}
 
 		public void Resume()
@@ -62,8 +69,19 @@ namespace Spewnity
 			return selectedGameObject;			
 		}
 
+		// Tries to cancel the currently playing event
+		// Leaves the action queue unpaused but not running, call Run() or Resume() to continue processing queue.
+		public void Cancel()
+		{
+			StopAllCoroutines();
+			CancelInvoke();
+			this.paused = false;
+		}
+
 		/////////// SOME FUNCTIONS THAT ADD PRE-DEFINED ACTIONS
 
+		// Pauses the queue for delaySec and the resumes processing.
+		// This action can be cancelled. See Cancel().
 		public ActionQueue Delay(float delaySec)
 		{
 			Add(() =>

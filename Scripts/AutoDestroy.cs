@@ -2,27 +2,41 @@
 using System.Collections;
 
 /**
- * Immediately destroys game object upon creation. Attach this to guide objects.
- * Use this on a folder, in combination with the EditorOnly tag, to keep prefab instances for testing.
- * They'll be excluded from final builds because of the tag, and destroyed instantly in editor playback 
- * mode if you haven't unticked the enabled box.
+ * Immediately destroys GameObject upon creation. Can optionally exclude object from final builds.  
+ * Can be used to create live guides and editor guides. Can be placed on any GameObject, including
+ * a folder: all child objects will affected as well.
  * 
- * The object will be destroyed before Start(), so to be useful as a guide, make a copy of the
- * transform's position in another script's Awake() method.
+ * Live Guide
+ * A live guide is a visual GameObject that provides placement information to the game at runtime,
+ * but does not appear to the player. Reference the guide in another GameObject, and during that
+ * object's Awake(), make a copy of the guides's transform elements you need (e.g., position). 
+ * The guide will be destroyed before Start() occurs.
+ * 
+ * Editor Guide
+ * An editor guide is a visual GameObject that can be used to help align objects in the editor,
+ * but does not appear to the player. Unlike live guides, editor guides is excluded from final
+ * builds, so you cannot reference the guide's position like you can with a live guide. To make
+ * this a live guide, check the excludeFromBuild box. This will tag the guide as EditorOnly.
+ * 
+ * To prevent accidental referencing of an editor guide, move AutoDestroy to the front of the 
+ * script execution order.
  */
 namespace Spewnity
 {
 	public class AutoDestroy : MonoBehaviour
 	{
+		public bool excludeFromBuild;
+
 		void Awake()
 		{
-			Destroy(gameObject);
+			if(excludeFromBuild)
+				DestroyImmediate(gameObject);
+			else Destroy(gameObject);
 		}
 
 		void OnValidate()
 		{
-			if(gameObject.tag != "EditorOnly")
-				Debug.Log("AutoDestroy Object " + gameObject.name + " should be tagged EditorOnly");
+			gameObject.tag = excludeFromBuild ? "EditorOnly" : "Untagged";
 		}
 	}
 }

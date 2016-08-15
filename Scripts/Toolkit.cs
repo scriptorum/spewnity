@@ -80,7 +80,7 @@ namespace Spewnity
 		}
 
 		// Snaps the XY component of a Vector3 to a 45 degree angle 
-		public static Vector3 SnapTo(this Vector3 v3, float snapAngle)
+		public static Vector3 Snap45(this Vector3 v3, float snapAngle)
 		{
 			float angle = Vector3.Angle(v3, Vector3.up);
 			if(angle < snapAngle / 2.0f)          // Cannot do cross product 

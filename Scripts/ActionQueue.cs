@@ -60,11 +60,17 @@ namespace Spewnity
 		}
 
 		// Returns a qualified, non-null game object, either the supplied parameter (if non-null) or the "selected" game object.
-		private GameObject Qualify(GameObject go)
+		// If the non-null, this may also "select" the game object.
+		private GameObject Qualify(GameObject go, bool alsoSelectIt = true)
 		{
-			if(go != null) return go;
+			if(go != null) 
+			{
+				if(alsoSelectIt)
+					selectedGameObject = go;
+				return go;
+			}
 
-			if(selectedGameObject == null) Debug.Log("Action references a null GameObject but selectedGameObject is also null");
+			if(selectedGameObject == null) Debug.Log("Action references a null GameObject but no game object has yet been selected");
 			
 			return selectedGameObject;			
 		}
@@ -98,6 +104,12 @@ namespace Spewnity
 			return this;
 		}
 
+		public ActionQueue RemoveComponent<T>(GameObject go = null) where T:Component
+		{
+			Add(() => GameObject.Destroy(Qualify(go).GetComponent<T>()));
+			return this;
+		}
+
 		public ActionQueue PlaySound(string soundName)
 		{
 			Add(() =>
@@ -126,7 +138,7 @@ namespace Spewnity
 		public ActionQueue SpawnAt(Vector3 position, GameObject prefab = null)
 		{
 			Add(() => selectedGameObject = (GameObject) 
-				Instantiate(Qualify(prefab), (Vector3) position, Quaternion.identity));
+				Instantiate(Qualify(prefab, false), (Vector3) position, Quaternion.identity));
 			return this;
 		}
 
@@ -135,6 +147,12 @@ namespace Spewnity
 		public ActionQueue Select(GameObject go)
 		{
 			Add(() => selectedGameObject = go);
+			return this;
+		}
+
+		public ActionQueue Log(string msg)
+		{
+			Add(() => Debug.Log(msg));
 			return this;
 		}
 	}

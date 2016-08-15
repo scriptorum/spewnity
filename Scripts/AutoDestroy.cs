@@ -29,14 +29,16 @@ namespace Spewnity
 
 		void Awake()
 		{
-			if(excludeFromBuild)
-				DestroyImmediate(gameObject);
+			if(excludeFromBuild) DestroyImmediate(gameObject);
 			else Destroy(gameObject);
 		}
 
 		void OnValidate()
 		{
-			gameObject.tag = excludeFromBuild ? "EditorOnly" : "Untagged";
+			// This gives a SendMessage warning in Unity 5.5, but seems to work regardless.
+			string newTag = excludeFromBuild ? "EditorOnly" : "Untagged";
+			if(gameObject.tag != newTag)
+				gameObject.tag = newTag;
 		}
 	}
 }

@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿//TODO Add StartCoroutine versions of the Lerps? I'll have to extend them off MonoBehaviour then.
+using UnityEngine;
 using System.Collections;
 
 namespace Spewnity
@@ -149,6 +150,11 @@ namespace Spewnity
 			Transform child = tform.FindChild(name);
 			Debug.Assert(child != null, "Could not find child " + name + " under " + tform.name);
 			return child;
+		}
+
+		public static GameObject GetChild(this GameObject go, string name)
+		{
+			return go.transform.GetChild(name).gameObject;
 		}
 
 		public static T GetComponentOf<T>(string name)

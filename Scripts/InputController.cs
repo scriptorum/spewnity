@@ -1,4 +1,6 @@
-﻿using UnityEngine;
+﻿// TODO Support for simulation of touch events from mouse input
+
+using UnityEngine;
 using UnityEngine.Events;
 using System.Collections;
 using System.Collections.Generic;
@@ -10,6 +12,19 @@ namespace Spewnity
 		public InputHandler[] inputHandlers;
 		private Touch? lastTouch = null;
 
+		void OnValidate()
+		{
+			// Provide better names for each input handler than "Element0"
+			foreach(InputHandler handler in inputHandlers)
+			{
+				handler.name = handler.type.ToString();
+				if(handler.keyCode != KeyCode.None) handler.name += " " + handler.keyCode;
+				if(handler.buttonName != "") handler.name += " " + handler.buttonName;
+				if(handler.axisName1 != "") handler.name += " " + handler.axisName1;
+				if(handler.axisName2 != "") handler.name += " " + handler.axisName2;
+			}
+		}
+
 		void Update()
 		{
 			foreach(InputHandler handler in inputHandlers)
@@ -19,38 +34,31 @@ namespace Spewnity
 				switch(handler.type)
 				{
 					case InputType.AnyKey:
-						if(Input.anyKeyDown)
-							handler.callback.Invoke(handler.inputEvent);
+						if(Input.anyKeyDown) handler.callback.Invoke(handler.inputEvent);
 						break;
 
 					case InputType.KeyUp:
-						if(Input.GetKeyUp(handler.keyCode))
-							handler.callback.Invoke(handler.inputEvent);
+						if(Input.GetKeyUp(handler.keyCode)) handler.callback.Invoke(handler.inputEvent);
 						break;
 
 					case InputType.KeyDown:
-						if(Input.GetKeyDown(handler.keyCode))
-							handler.callback.Invoke(handler.inputEvent);
+						if(Input.GetKeyDown(handler.keyCode)) handler.callback.Invoke(handler.inputEvent);
 						break;
 
 					case InputType.KeyHeld:
-						if(Input.GetKey(handler.keyCode))
-							handler.callback.Invoke(handler.inputEvent);
+						if(Input.GetKey(handler.keyCode)) handler.callback.Invoke(handler.inputEvent);
 						break;
 
 					case InputType.ButtonUp:
-						if(Input.GetButtonUp(handler.buttonName))
-							handler.callback.Invoke(handler.inputEvent);
+						if(Input.GetButtonUp(handler.buttonName)) handler.callback.Invoke(handler.inputEvent);
 						break;
 
 					case InputType.ButtonDown:
-						if(Input.GetButtonDown(handler.buttonName))
-							handler.callback.Invoke(handler.inputEvent);
+						if(Input.GetButtonDown(handler.buttonName)) handler.callback.Invoke(handler.inputEvent);
 						break;
 
 					case InputType.ButtonHeld:
-						if(Input.GetButton(handler.buttonName))
-							handler.callback.Invoke(handler.inputEvent);
+						if(Input.GetButton(handler.buttonName)) handler.callback.Invoke(handler.inputEvent);
 						break;
 
 				// Detects a SINGLE touch going down - if multitouch, only initial touch is considered
@@ -64,11 +72,9 @@ namespace Spewnity
 				
 				// Detects a SINGLE touch coming up - if multitouch, only initial touch is considered
 					case InputType.TouchUp:
-						if(lastTouch != null)
-							break;
+						if(lastTouch != null) break;
 
-						foreach(Touch touch in Input.touches)
-							if(touch.fingerId == ((Touch) lastTouch).fingerId)
+						foreach(Touch touch in Input.touches) if(touch.fingerId == ((Touch) lastTouch).fingerId)
 							{
 								handler.inputEvent.touch = touch;
 								handler.callback.Invoke(handler.inputEvent);
@@ -89,8 +95,7 @@ namespace Spewnity
 						}
 						else
 						{ // Find last touch
-							foreach(Touch touch in Input.touches)
-								if(touch.fingerId == ((Touch) lastTouch).fingerId)
+							foreach(Touch touch in Input.touches) if(touch.fingerId == ((Touch) lastTouch).fingerId)
 								{
 									handler.inputEvent.touch = touch;
 									handler.callback.Invoke(handler.inputEvent);
@@ -101,12 +106,9 @@ namespace Spewnity
 
 					case InputType.Axis:
 						float axis1 = handler.axisOptions.raw ? Input.GetAxisRaw(handler.axisName1) : Input.GetAxis(handler.axisName1);
-						if(handler.axisOptions.invertAxis1)
-							axis1 = -axis1;
-						if(handler.axisOptions.noRepeats && handler.inputEvent.axis.x != axis1)
-							break;
-						if(handler.axisOptions.noZeros && axis1 == 0 && handler.inputEvent.axis.y == 0)
-							break;
+						if(handler.axisOptions.invertAxis1) axis1 = -axis1;
+						if(handler.axisOptions.noRepeats && handler.inputEvent.axis.x != axis1) break;
+						if(handler.axisOptions.noZeros && axis1 == 0 && handler.inputEvent.axis.y == 0) break;
 
 						handler.inputEvent.axis.Set(axis1, 0);
 						handler.callback.Invoke(handler.inputEvent);
@@ -115,22 +117,16 @@ namespace Spewnity
 					case InputType.DoubleAxis:
 						float daxis1 = handler.axisOptions.raw ? Input.GetAxisRaw(handler.axisName1) : Input.GetAxis(handler.axisName1);
 						float daxis2 = handler.axisOptions.raw ? Input.GetAxisRaw(handler.axisName2) : Input.GetAxis(handler.axisName2);
-						if(handler.axisOptions.invertAxis1)
-							daxis1 = -daxis1;
-						if(handler.axisOptions.invertAxis2)
-							daxis2 = -daxis2;
+						if(handler.axisOptions.invertAxis1) daxis1 = -daxis1;
+						if(handler.axisOptions.invertAxis2) daxis2 = -daxis2;
 						if(handler.axisOptions.noDiagonals)
 						{
-							if(Mathf.Abs(daxis1) > Mathf.Abs(daxis2))
-								daxis2 = 0;
-							else
-								daxis1 = 0;
+							if(Mathf.Abs(daxis1) > Mathf.Abs(daxis2)) daxis2 = 0;
+							else daxis1 = 0;
 						}
 
-						if(handler.axisOptions.noRepeats && (handler.inputEvent.axis.x != daxis1 || handler.inputEvent.axis.y != daxis2))
-							break;
-						if(handler.axisOptions.noZeros && daxis1 == 0 && daxis2 == 0)
-							break;
+						if(handler.axisOptions.noRepeats && (handler.inputEvent.axis.x != daxis1 || handler.inputEvent.axis.y != daxis2)) break;
+						if(handler.axisOptions.noZeros && daxis1 == 0 && daxis2 == 0) break;
 
 						handler.inputEvent.axis.Set(daxis1, daxis2);
 						handler.callback.Invoke(handler.inputEvent);
@@ -146,6 +142,8 @@ namespace Spewnity
 	[System.Serializable]
 	public class InputHandler
 	{
+		[HideInInspector] // Value is set automatically
+		public string name;
 		public InputType type;
 		public KeyCode keyCode;
 		public string buttonName;
@@ -157,7 +155,8 @@ namespace Spewnity
 		public InputCallback callback;
 		[HideInInspector]
 		public InputEvent
-			inputEvent;	// The result of the input, to be passed to the callback
+			inputEvent;
+
 	}
 
 	[System.Serializable]
@@ -180,14 +179,17 @@ namespace Spewnity
 			raw;
 		[Tooltip("If true, 0,0 is not reported")]
 		public bool
-			noZeros; 
+			noZeros;
 	}
 
 	public struct InputEvent
 	{
-		public Vector2 axis;	// Axis reading; axis1 value is in x; for double axis, axis2 value is in y
-		public Touch touch;		// Primary touch processed
-		public string keys;		// Keys entered since last frame
+		public Vector2 axis;
+		// Axis reading; axis1 value is in x; for double axis, axis2 value is in y
+		public Touch touch;
+		// Primary touch processed
+		public string keys;
+		// Keys entered since last frame
 		public InputHandler handler;
 	}
 
@@ -199,7 +201,7 @@ namespace Spewnity
 		AnyKey,
 		ButtonDown,
 		ButtonUp,
-		ButtonHeld, 
+		ButtonHeld,
 		Axis,
 		DoubleAxis,
 		TouchDown,

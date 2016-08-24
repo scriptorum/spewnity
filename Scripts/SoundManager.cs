@@ -31,6 +31,7 @@ namespace Spewnity
 				Sound sound = sounds[0];
 				sound.volume = 1f;
 				sound.pitch = 1f;
+				sound.usePool = true;
 				soundsInitialized = true;
 			}
 

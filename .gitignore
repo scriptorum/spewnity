@@ -1,3 +1,5 @@
+export/
+
 =============== 
 Unity generated
 ===============
@@ -9,12 +11,11 @@ Visual Studio / MonoDevelop generated
 =====================================
 ExportedObj/
 obj/
+bin/
 *.svd
 *.userprefs
-/*.csproj
 *.pidb
 *.suo
-/*.sln
 *.user
 *.unityproj
 *.booproj

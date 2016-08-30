@@ -10,6 +10,7 @@ namespace Spewnity
 	{
 		public List<Action> actions = new List<Action>();
 		public bool paused = false;
+		public bool running = false;
 		public GameObject selectedGameObject = null;
 
 		public ActionQueue Add(Action action)
@@ -28,6 +29,8 @@ namespace Spewnity
 		// in which case the queue will resume itself when it's ready.
 		public void Run()
 		{
+			running = true;
+
 			// Run until paused or out of actions
 			while(!paused && actions.Count > 0)
 			{
@@ -36,6 +39,8 @@ namespace Spewnity
 				actions.RemoveAt(0);
 				action();
 			}
+
+			running = actions.Count > 0;
 		}
 
 		public int Count()
@@ -57,6 +62,13 @@ namespace Spewnity
 		public void Clear()
 		{
 			actions.Clear();
+			running = false;
+		}
+
+		public void Reset()
+		{
+			Cancel();
+			Clear();
 		}
 
 		// Returns a qualified, non-null game object, either the supplied parameter (if non-null) or the "selected" game object.
@@ -115,7 +127,7 @@ namespace Spewnity
 		{
 			Add(() =>
 			{
-				if(waitForIt) 
+				if(waitForIt)
 				{
 					Pause();
 					SoundManager.instance.Play(soundName, (snd) => Resume());
@@ -132,16 +144,16 @@ namespace Spewnity
 		}
 
 		// Instantiates a game object and selects it (see Select)
-		public ActionQueue Instatiate(GameObject prefab = null)
+		public ActionQueue Instatiate(GameObject prefab)
 		{
-			Add(() => GameObject.Instantiate(Qualify(prefab, true)));
+			Add(() => selectedGameObject = (GameObject) GameObject.Instantiate(prefab));
 			return this;
 		}
 
 		// Instantiates a game object at a certain position and selects it (see Select)
-		public ActionQueue Instantiate(Vector3 position, GameObject prefab = null)
+		public ActionQueue Instantiate(GameObject prefab, Vector3 position)
 		{
-			Add(() => GameObject.Instantiate(Qualify(prefab, true), (Vector3) position, Quaternion.identity));
+			Add(() => selectedGameObject = (GameObject) GameObject.Instantiate(prefab, (Vector3) position, Quaternion.identity));
 			return this;
 		}
 

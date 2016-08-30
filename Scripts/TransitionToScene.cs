@@ -14,11 +14,20 @@ namespace Spewnity
 {
 	public class TransitionToScene : MonoBehaviour
 	{
+		public static string data;
+
 		public string clickSoundName = "";
 		public string sceneName;
 		public KeyCode[] keys;
 		public LoadSceneMode mode = LoadSceneMode.Single;
 		public UnityEvent clickEvent;
+		public string dataToForward = "";
+
+		void Awake()
+		{
+			if(gameObject.GetComponent<Collider2D>() == null)
+				throw new UnityException("GameObject + " + gameObject.name + " needs a collider to work");
+		}
 
 		void Update()
 		{
@@ -39,8 +48,9 @@ namespace Spewnity
 
 		public void transition()
 		{
-			if(clickSoundName != null && clickSoundName != "" && SoundManager.instance != null)
-				SoundManager.instance.Play(clickSoundName);
+			TransitionToScene.data = this.dataToForward;
+
+			if(clickSoundName != null && clickSoundName != "" && SoundManager.instance != null) SoundManager.instance.Play(clickSoundName);
 
 			clickEvent.Invoke();
 

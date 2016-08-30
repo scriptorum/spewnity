@@ -35,10 +35,12 @@ namespace Spewnity
 				soundsInitialized = true;
 			}
 
+			#if DEBUG
 			foreach(Sound sound in sounds)
 			{
-				if(sound.usePool && sound.looping) Debug.Log("Not recommended to use the audio source pool for a looping sound");
+				if(sound.usePool && sound.looping) Debug.Log(sound.name + " is looping and pooling. Both simultaneously are not recommended.");
 			}
+			#endif
 		}
 
 		void Awake()
@@ -112,23 +114,29 @@ namespace Spewnity
 		}
 
 		// Plays the Sound associated with the supplied name.
-		public void Play(string name, System.Action<Sound> onComplete = null)
+		public Sound Play(string name, System.Action<Sound> onComplete = null)
 		{			
 			Sound sound = GetSound(name);
-
+			return Play(sound, onComplete);
+		}
+			
+		// Plays the Sound.
+		public Sound Play(Sound sound, System.Action<Sound> onComplete = null)
+		{			
 			float pitch = sound.pitch + Random.Range(-sound.pitchVariation, sound.pitchVariation);
 			float volume = sound.volume + Random.Range(-sound.volumeVariation, sound.volumeVariation);
 			float pan = sound.pan + Random.Range(-sound.panVariation, sound.panVariation);
-
-			PlayAs(sound, pitch, volume, pan, sound.looping, onComplete);
+			return PlayAs(sound, pitch, volume, pan, sound.looping, onComplete);
 		}
 
-		public void PlayAs(string name, float pitch = 1.0f, float volume = 1.0f, float pan = 0.0f, bool loop = false, System.Action<Sound> onComplete = null)
+		public Sound PlayAs(string name, float pitch = 1.0f, float volume = 1.0f, float pan = 0.0f, bool loop = false, System.Action<Sound> onComplete = null)
 		{
-			PlayAs(GetSound(name), pitch, volume, pan, loop, onComplete);
+			Sound sound = GetSound(name);
+			PlayAs(sound, pitch, volume, pan, loop, onComplete);
+			return sound;
 		}
 
-		public void PlayAs(Sound sound, float pitch = 1.0f, float volume = 1.0f, float pan = 0.0f, bool loop = false, System.Action<Sound> onComplete = null)
+		public Sound PlayAs(Sound sound, float pitch = 1.0f, float volume = 1.0f, float pan = 0.0f, bool loop = false, System.Action<Sound> onComplete = null)
 		{
 			if(sound.clips.Length <= 0) throw new UnityException("Cannot play sound '" + name + "': no AudioClips defined");
 
@@ -154,9 +162,17 @@ namespace Spewnity
 			sound.source.volume = volume;
 			sound.source.panStereo = pan;
 			sound.source.loop = loop;
-			sound.source.Play();
+
+			if(sound.delay > 0)
+			{
+				sound.source.PlayDelayed(sound.delay);
+				sound.delay = 0;
+			}
+			else sound.source.Play();
 			
 			if(sound.usePool || onComplete != null) StartCoroutine(OnSoundComplete(sound, onComplete));
+
+			return sound;
 		}
 
 		private IEnumerator OnSoundComplete(Sound sound, System.Action<Sound> onComplete)
@@ -166,8 +182,7 @@ namespace Spewnity
 			yield return new WaitForSeconds(source.clip.length);
 
 			// Notify callback, if supplied
-			if(onComplete != null)
-				onComplete.Invoke(sound);
+			if(onComplete != null) onComplete.Invoke(sound);
 
 			// Move audio source from busy to open pool
 			if(sound.usePool)
@@ -180,14 +195,16 @@ namespace Spewnity
 		public void Stop()
 		{
 			// Stop all sounds from playing
-			foreach(Sound sound in sounds) sound.source.Stop();
+			foreach(Sound sound in sounds)
+			{
+				if(sound.source != null) sound.source.Stop();
+			}
 
 			// If using pooling or callbacks, coroutines may still be running - prevent them from finishing
 			StopAllCoroutines();
 
 			// If using pooling, since we stopped the callbacks, audio sources may be falsely listed as busy
-			foreach(AudioSource source in busyPool)
-				openPool.Add(source);
+			foreach(AudioSource source in busyPool) openPool.Add(source);
 			busyPool.Clear();
 		}
 
@@ -209,10 +226,9 @@ namespace Spewnity
 			if(source.loop == false)
 			{
 				float timeRemaining = source.clip.length - source.time;
-				if(fadeTime > timeRemaining)
-					fadeTime = timeRemaining;
+				if(fadeTime > timeRemaining) fadeTime = timeRemaining;
 			}
-			StartCoroutine(source.volume.LerpFloat(0.0f, fadeTime, (f)=>source.volume=f, curve, ()=>source.Stop()));
+			StartCoroutine(source.volume.LerpFloat(0.0f, fadeTime, (f) => source.volume = f, curve, () => source.Stop()));
 		}
 	}
 
@@ -248,6 +264,10 @@ namespace Spewnity
 
 		[Tooltip("If true, uses internal audio source pooling. If false, generates its own audio source. Ignored if a custom audio source is supplied.")]
 		public bool usePool;
+
+		[Tooltip("If nonzero, delays the next playing of the sound by this number of second. This property is then reset to 0.")]
+		[HideInInspector]
+		public float delay;
 
 		[Tooltip("If usePool is false and this is supplied, will use this custom Audio Source.")]
 		public AudioSource source;

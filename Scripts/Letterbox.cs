@@ -6,7 +6,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class AspectEnforcer : MonoBehaviour
+public class Letterbox : MonoBehaviour
 {
 	[Tooltip("Aspect ratio or desired screen resolution")]
 	public Vector2 aspectRatio = new Vector2(16, 10);

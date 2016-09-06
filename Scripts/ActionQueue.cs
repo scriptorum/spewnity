@@ -48,12 +48,15 @@ namespace Spewnity
 			return actions.Count;
 		}
 
+		// See Pause
 		public void Resume()
 		{
 			this.paused = false;
 			Run();
 		}
 
+		// This is an internal-action method for pausing the run loop
+		// Call this if the action is doing something asynchronous and will call Resume() when it's finished
 		public void Pause()
 		{
 			this.paused = true;
@@ -144,7 +147,7 @@ namespace Spewnity
 		}
 
 		// Instantiates a game object and selects it (see Select)
-		public ActionQueue Instatiate(GameObject prefab)
+		public ActionQueue Instantiate(GameObject prefab)
 		{
 			Add(() => selectedGameObject = (GameObject) GameObject.Instantiate(prefab));
 			return this;
@@ -157,13 +160,25 @@ namespace Spewnity
 			return this;
 		}
 
+		public ActionQueue Activate(GameObject go = null)
+		{
+			Add(() => Qualify(go).SetActive(true));
+			return this;
+		}
+
+		public ActionQueue Deactivate(GameObject go = null)
+		{
+			Add(() => Qualify(go).SetActive(false));
+			return this;
+		}
+
 		// Destroys the game object and also deselects it
 		public ActionQueue Destroy(GameObject go = null)
 		{
 			Add(() =>
 			{
 				GameObject.Destroy(Qualify(go));
-				selectedGameObject = null;
+				if(go == null) selectedGameObject = null;
 			});
 			return this;
 		}
@@ -181,6 +196,13 @@ namespace Spewnity
 		public ActionQueue Select(GameObject go)
 		{
 			Add(() => selectedGameObject = go);
+			return this;
+		}
+
+		// Starts a coroutine
+		public ActionQueue Coroutine(IEnumerator routine)
+		{
+			Add(() => StartCoroutine(routine));
 			return this;
 		}
 

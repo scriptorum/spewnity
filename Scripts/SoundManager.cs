@@ -41,6 +41,20 @@ namespace Spewnity
 				if(sound.usePool && sound.looping) Debug.Log(sound.name + " is looping and pooling. Both simultaneously are not recommended.");
 			}
 			#endif
+
+			// Update all pool source in case mixer changed
+			List<List<AudioSource>> pools = new List<List<AudioSource>> {
+				busyPool,
+				openPool
+			};
+			foreach(List<AudioSource> pool in pools)
+			{
+				if(pool == null) continue;
+				foreach(AudioSource source in pool)
+				{
+					source.outputAudioMixerGroup = output;
+				}
+			}			
 		}
 
 		void Awake()
@@ -229,6 +243,16 @@ namespace Spewnity
 				if(fadeTime > timeRemaining) fadeTime = timeRemaining;
 			}
 			StartCoroutine(source.volume.LerpFloat(0.0f, fadeTime, (f) => source.volume = f, curve, () => source.Stop()));
+		}
+
+		// Fades in a specific sound gradually. If the sound is not playing already, it is started.
+		public void FadeIn(string name, float fadeTime, float volume = 1.0f, AnimationCurve curve = null)
+		{
+			// Get audio source, start it if not playing
+			AudioSource source = GetSource(name);
+			if(!source.isPlaying) Play(name);
+
+			StartCoroutine(source.volume.LerpFloat(volume, fadeTime, (f) => source.volume = f, curve));
 		}
 	}
 

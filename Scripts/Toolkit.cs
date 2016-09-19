@@ -1,6 +1,8 @@
 ﻿//TODO Add StartCoroutine versions of the Lerps? I'll have to extend them off MonoBehaviour then.
 using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Spewnity
 {
@@ -112,6 +114,16 @@ namespace Spewnity
 			}
 			return arr;
 		}
+
+		public static int Abs(this int val)
+		{
+			return val < 0 ? -val : val;
+		}
+
+		public static int Sign(this int val)
+		{
+			return val < 0 ? -1 : (val == 0 ? 0 : 1);
+		}
 	
 		public static string GetFullPath(this Transform o)
 		{
@@ -119,6 +131,13 @@ namespace Spewnity
 				return "/" + o.name;
 			return o.parent.GetFullPath() + "/" + o.name;
 		}
+
+		public static T Rnd<T>(this ICollection<T> collection)
+		{
+			Debug.Assert(collection.Count > 0);
+			return collection.ElementAt(Random.Range(0, collection.Count));
+		}
+
 
 		public static T Rnd<T>(this T[] arr)
 		{
@@ -164,6 +183,12 @@ namespace Spewnity
 			T component = go.GetComponent<T>();
 			Debug.Assert(component != null);
 			return component;
+		}
+
+		public static void DestroyChildren(this Transform tform)
+		{
+			foreach(Transform child in tform)
+				GameObject.Destroy(child.gameObject);				
 		}
 	}
 }

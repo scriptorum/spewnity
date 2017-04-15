@@ -4,6 +4,23 @@ using System.Collections.Generic;
 using UnityEngine.Events;
 using Action = System.Action;
 
+/**
+ * 
+ * Create an ActionQueue by adding it as a component to a MonoBehavior:
+ * 		ActionQueue aq = gameObject.AddComponent<ActionQueue>();
+ * 
+ * Add actions to it:
+ * 
+ * 		aq.Delay(3f);
+ * 		aq.Add(() => DamageTarget(target));
+ * 		aq.Destroy(bullet);
+ * 		aq.Log("Bullet removed");
+ * 
+ * And start up the queue
+ * 
+ * 		aq.Run();
+ * 
+ **/
 namespace Spewnity
 {
 	public class ActionQueue: MonoBehaviour
@@ -209,6 +226,14 @@ namespace Spewnity
 		public ActionQueue Log(string msg)
 		{
 			Add(() => Debug.Log(msg));
+			return this;
+		}
+
+		// Adds a coroutine. By adding it this way, this MonoBehavior "holds" the coroutine, so
+		// Reset() will stop it.
+		public ActionQueue AddCoroutine(IEnumerator coroutine)
+		{
+			Add(() => StartCoroutine(coroutine));
 			return this;
 		}
 	}

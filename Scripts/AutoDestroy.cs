@@ -14,7 +14,7 @@ using System.Collections;
  * 
  * Editor Guide
  * An editor guide is a visual GameObject that can be used to help align objects in the editor,
- * but does not appear to the player. Unlike live guides, editor guides is excluded from final
+ * but does not appear to the player. Unlike live guides, editor guides are excluded from final
  * builds, so you cannot reference the guide's position like you can with a live guide. To make
  * this a live guide, check the excludeFromBuild box. This will tag the guide as EditorOnly.
  * 

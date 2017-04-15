@@ -205,7 +205,19 @@ namespace Spewnity
 
 		public static void DestroyChildren(this Transform tform)
 		{
-			foreach(Transform child in tform) GameObject.Destroy(child.gameObject);				
+			foreach(Transform child in tform)
+				GameObject.Destroy(child.gameObject);				
+		}
+
+		public static void DestroyChildrenImmediately(this Transform tform)
+		{
+			for(int i = tform.childCount - 1; i >= 0; i--)
+				GameObject.DestroyImmediate(tform.GetChild(i).gameObject);
+		}
+
+		public static void ThrowIfNull(this object o, string msg = "NullReferenceException")
+		{
+			if(o == null) throw new System.NullReferenceException(msg);
 		}
 	}
 }

@@ -150,17 +150,10 @@ namespace Spewnity
 			return o.parent.GetFullPath() + "/" + o.name;
 		}
 
-		public static T Rnd<T>(this ICollection<T> collection)
+		public static T Rnd<T>(this IList<T> collection)
 		{
 			Debug.Assert(collection.Count > 0);
 			return collection.ElementAt(Random.Range(0, collection.Count));
-		}
-
-
-		public static T Rnd<T>(this T[] arr)
-		{
-			Debug.Assert(arr.Length > 0);
-			return arr[Random.Range(0, arr.Length)];
 		}
 
 		public static bool CoinFlip()

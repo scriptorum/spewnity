@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -9,15 +10,23 @@ using UnityEditorInternal;
 
 /**
  * A lightweight 2D animator.
+ *
  * Drag sprite frames to the frames array (you may have to lock the Anim's GameObject in the inspector).
- * Then specify animations with a unique name and frames. The frame definition consists of frame numbers 
- * (corresponding to the frames array) that are comma-separated. The definition may also include ranges
- * in the form of min-max (inclusive).
+ * Then specify animations with a unique name and frames. The frame definition consists comma-separated
+ * values, such as "0-9,9x10,9-0". Each value must be in one of the formats:
  * 
+ *     value - a single integer (corresponding to the index in the frames array, such as "3") 
+ *     range - a min-max or max-min range with a hyphen between the values ("5-10"); the extents are inclusive
+ *     reps  - a value to be repeated and a number of reps, separated by an x ("0x10")
+ *
  * To specify the initial animation, supply a sequenceName matching the name of one of your sequences.
  * To change the sequence at runtime, call Play(). To view your initial animation in real time, check
  * Live Preview. Note that the live preview may run slower than your normal frame rate. The GameObject 
  * must have a SpriteRenderer attached.
+ *
+ * The animation will automatically loop. You can subscribe to the onLoop event in order to stop the
+ * animation (see Pause and Clear), change the current sequence (see Play), or anything else.
+ * TODO: Looping should be an optional setting
  */
 namespace Spewnity
 {
@@ -28,7 +37,8 @@ namespace Spewnity
         public string sequenceName;
         public List<AnimSequence> sequences;
         public List<Sprite> frames;
-        public bool paused = false;
+        public bool paused = false;        
+        public AnimEvent onLoop;
 
         private int frame = 0;
         private AnimSequence sequence;
@@ -47,7 +57,9 @@ namespace Spewnity
                 sr = gameObject.AddComponent<SpriteRenderer>();
 #if DEBUG
                 Debug.Log("DEBUG: No SpriteRenderer defined.");
-#endif                
+#endif             
+                if(sequenceName == "")
+                    paused = true;
             }
         }
 
@@ -60,15 +72,21 @@ namespace Spewnity
         {
             UpdateCache();
 
-            if (sequence == null || sequence.name != sequenceName)
+            if (livePreview && (sequence == null || sequence.name != sequenceName))
                 Play(sequenceName);
         }
 
         public void Play(string name)
-        {            
-            if (!cache.ContainsKey(name))
+        {         
+            if(name == null || name == "")
             {
-                Debug.Log("Unknown sequence name: " + name);
+                Clear();
+                return;
+            }
+            
+            if (!IsCached(name))
+            {
+                Debug.Log(transform.GetFullPath() + "<Anim> cache failed hit for sequence name: " + name);
                 return;
             }
 
@@ -78,6 +96,17 @@ namespace Spewnity
             elapsed = 0;
             paused = false;
             UpdateView();
+        }
+
+        public bool IsCached(string name)
+        {
+            return cache.ContainsKey(name);
+        }
+
+        public void Freeze(string name)
+        {
+            Play(name);
+            Pause();
         }
 
         // Pauses the animation on the current frame
@@ -100,6 +129,9 @@ namespace Spewnity
             sr.sprite = null;
         }
 
+        // Known Issue: This is a non-frame-skipping implementation. 
+        // If the FPS is high enough, it will max out displaying 1 frame
+        // per update call, and higher FPS will not change that.
         public void Update()
         {
             if(paused)
@@ -118,23 +150,44 @@ namespace Spewnity
             {
                 elapsed -= sequence.deltaTime;
                 if (++frame >= sequence.frameArray.Count)
+                {
                     frame = 0;
+                    onLoop.Invoke(this);                    
+                }
                 UpdateView();
             }
         }
 
         private void UpdateView()
         {
-            if (sequence == null || sr == null)
+            if (sequence == null || sr == null || frames.Count == 0 || frame < 0 || frame >= sequence.frameArray.Count)
+            {
+                sr.sprite = null;
                 return;
-
-            if (frame < 0 || frame >= sequence.frameArray.Count)
-                return;
+            }
 
             int cel = sequence.frameArray[frame];
             sr.sprite = frames[cel];
         }
 
+        public AnimSequence Add(AnimSequence seq)
+        {
+            sequences.Add(seq);
+            UpdateCache();
+            return seq;
+        }
+
+        public AnimSequence Add(string name, string frames, int fps)
+        {
+            AnimSequence seq = new AnimSequence(name, frames, fps);
+            this.Add(seq);
+            return seq;
+        }
+
+        /*
+         *  If you modify the sequences, frames, or fps directly, you must call 
+         * UpdateCache() afterwards to set up the cache and precalculations.
+         */
         public void UpdateCache()
         {
             // Recreate cache
@@ -145,29 +198,48 @@ namespace Spewnity
             // Preprocess sequence frames and fps
             foreach (AnimSequence seq in sequences)
             {
-                seq.deltaTime = 1 / seq.fps;
+                seq.deltaTime = 1f / (float) seq.fps;
                 if (seq.deltaTime <= 0)
                     Debug.Log("Illegal fps:" + seq.fps);
-                seq.frameArray = new List<int>();
-                seq.frames = seq.frames.Replace(" ", "");
-                foreach (string element in seq.frames.Split(','))
+                seq.frameArray = GetFramesArray(seq.frames);
+            }
+        }
+
+        // Converts a frame string into an array
+        public static List<int> GetFramesArray(string frames)
+        {
+            List<int> result = new List<int>();
+            string str = frames.Replace(" ", "");
+            foreach (string element in str.ToLower().Split(','))
+            {
+                if (element.Contains("-"))
                 {
-                    // TODO Error reporting
-                    if (element.Contains("-"))
-                    {
-                        string[] extents = element.Split('-');
-                        int low = int.Parse(extents[0]);
-                        int high = int.Parse(extents[1]);
-                        for (int i = low; i <= high; i++)
-                            seq.frameArray.Add(i);
-                    }
-                    else
-                    {
-                        int result = int.Parse(element);
-                        seq.frameArray.Add(result);
-                    }
+                    string[] extents = element.Split('-');
+                    Debug.Assert(extents.Length == 2);
+                    int left = int.Parse(extents[0]);
+                    int right = int.Parse(extents[1]);
+                    int order = (right > left ? 1 : -1);
+                    for (int i = left; i != right + order; i += order)
+                        result.Add(i);
+                }
+                else if(element.Contains("x"))
+                {
+                    string[] extents = element.Split('x');
+                    Debug.Assert(extents.Length == 2);
+                    int val = int.Parse(extents[0]);
+                    int repetition = int.Parse(extents[1]);
+                    while(repetition-- > 0)
+                        result.Add(val);
+                }
+                else
+                {
+                    int val = int.Parse(element);
+                    result.Add(val);
                 }
             }
+
+            return result;
+            // Debug.Log("Converted:" + seq.frames + " to " + seq.frameArray.Join());
         }
     }
 
@@ -184,34 +256,25 @@ namespace Spewnity
         public List<int> frameArray; // frame string expanded to array
         [HideInInspector]
         public float deltaTime;
+
+        public AnimSequence(string name, string frames, int fps)
+        {
+            this.name = name;
+            this.frames = frames;
+            this.fps = fps;
+        }
     }
+
+    [System.Serializable]
+    public class AnimEvent: UnityEvent<Anim> { }
 
 #if UNITY_EDITOR
     [CustomEditor(typeof(Anim))]
     public class AnimEditor : Editor
     {
-        private SerializedProperty livePreview;
-        private SerializedProperty sequenceName;
-        private SerializedProperty frames;
-        private SerializedProperty sequences;
-
-        public void OnEnable()
-        {
-            livePreview = serializedObject.FindProperty("livePreview");
-            sequenceName = serializedObject.FindProperty("sequenceName");
-            frames = serializedObject.FindProperty("frames");
-            sequences = serializedObject.FindProperty("sequences");
-        }
-
         public override void OnInspectorGUI()
         {
-            // Display inspector
-            serializedObject.Update();
-            EditorGUILayout.PropertyField(livePreview);
-            EditorGUILayout.PropertyField(sequenceName);
-            EditorGUILayout.PropertyField(frames, true);
-            EditorGUILayout.PropertyField(sequences, true);
-            serializedObject.ApplyModifiedProperties();
+            DrawDefaultInspector();
 
             // Support live preview
             Anim anim = (Anim)target;

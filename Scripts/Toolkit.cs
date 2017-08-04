@@ -182,6 +182,12 @@ namespace Spewnity
 			return ret;
 		}
 
+		// True if the string is null or has no content
+		public static bool IsEmpty(this string str)
+		{
+			return (str == null || str == "");
+		}
+
 		public static Transform GetChild(this Transform tform, string name)
 		{
 			Transform child = tform.Find(name);

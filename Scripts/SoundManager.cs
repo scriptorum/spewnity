@@ -53,14 +53,14 @@ namespace Spewnity
             }
 #endif
 
-			bool previewing = false;
+            bool previewing = false;
             foreach(Sound snd in sounds)
             {
                 if (snd.livePreview)
                 {
                     AudioSource source = gameObject.GetComponent<AudioSource>();
-					if(source == null)
-						source = gameObject.AddComponent<AudioSource>();
+                    if (source == null)
+                        source = gameObject.AddComponent<AudioSource>();
                     snd.livePreview = false;
                     source.playOnAwake = false;
                     source.outputAudioMixerGroup = snd.group == null ? defaultAudioMixerGroup : snd.group;
@@ -70,15 +70,15 @@ namespace Spewnity
                     source.panStereo = snd.GetPan();
                     source.loop = false;
                     source.Play();
-					previewing = true;
+                    previewing = true;
                 }
             }
-			if(!previewing)
-			{
-				AudioSource source = GetComponent<AudioSource>();
-				if(source != null)
-					UnityEditor.EditorApplication.delayCall += () => { DestroyImmediate(source); };
-			}
+            if (!previewing)
+            {
+                AudioSource source = GetComponent<AudioSource>();
+                if (source != null)
+                    UnityEditor.EditorApplication.delayCall += () => { DestroyImmediate(source); };
+            }
         }
 
         void Awake()
@@ -170,17 +170,34 @@ namespace Spewnity
         // Plays the Sound.
         public Sound Play(Sound sound, System.Action<Sound> onComplete = null)
         {
-            return PlayAs(sound, sound.GetPitch(), sound.GetVolume(), sound.GetPan(), sound.looping, onComplete);
+            return PlayAs(sound, sound.GetPitch(), sound.GetVolume(), sound.GetPan(), sound.looping, onComplete, null);
         }
 
-        public Sound PlayAs(string name, float pitch = 1.0f, float volume = 1.0f, float pan = 0.0f, bool loop = false, System.Action<Sound> onComplete = null)
+        // Plays a sound at a position in space
+        // See PlayAt(Sound...)
+        public void PlayAt(string name, Vector3 position, System.Action<Sound> onComplete = null)
         {
             Sound sound = GetSound(name);
-            PlayAs(sound, pitch, volume, pan, loop, onComplete);
+            PlayAt(sound, position, onComplete);
+        }
+
+        // Plays a sound at a position in space. This uses AudioSource.PlayClipAtPoint().
+        // Note that this currently doesn't support changes in pitch or panning, or start delays.
+        public void PlayAt(Sound sound, Vector3 position, System.Action<Sound> onComplete = null)
+        {
+            PlayAs(sound, sound.GetPitch(), sound.GetVolume(), sound.GetPan(), sound.looping, onComplete, position);
+        }
+
+        public Sound PlayAs(string name, float pitch = 1.0f, float volume = 1.0f, float pan = 0.0f,
+            bool loop = false, System.Action<Sound> onComplete = null, Vector3? position = null)
+        {
+            Sound sound = GetSound(name);
+            PlayAs(sound, pitch, volume, pan, loop, onComplete, position);
             return sound;
         }
 
-        public Sound PlayAs(Sound sound, float pitch = 1.0f, float volume = 1.0f, float pan = 0.0f, bool loop = false, System.Action<Sound> onComplete = null)
+        public Sound PlayAs(Sound sound, float pitch = 1.0f, float volume = 1.0f, float pan = 0.0f,
+            bool loop = false, System.Action<Sound> onComplete = null, Vector3? position = null)
         {
             if (sound.clips.Length <= 0) throw new UnityException("Cannot play sound '" + sound.name + "': no AudioClips defined");
 
@@ -192,7 +209,7 @@ namespace Spewnity
             if (sound.multi == SoundMulti.TakeOver && sound.source != null && sound.source.isPlaying)
                 sound.source.Stop();
 
-            else if (sound.usePool)
+            else if (sound.usePool && position == null)
             {
                 if (openPool.Count == 0)
                 {
@@ -207,6 +224,12 @@ namespace Spewnity
             int clipId = Random.Range(0, sound.clips.Length);
             AudioClip clip = sound.clips[clipId];
             if (clip == null) throw new UnityException("Cannot play sound '" + sound.name + "': clip '" + clipId + "' not defined");
+
+            if (position != null)
+            {
+                AudioSource.PlayClipAtPoint(sound.clips[clipId], (Vector3) position, volume);
+                return null;
+            }
 
             if (sound.source == null) throw new UnityException("Cannot play sound '" + sound.name + "': no AudioSource connected");
 

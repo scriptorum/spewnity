@@ -182,7 +182,9 @@ namespace Spewnity
         }
 
         // Plays a sound at a position in space. This uses AudioSource.PlayClipAtPoint().
-        // Note that this currently doesn't support changes in pitch or panning, or start delays.
+        // Note this method doesn't support changes in pitch, panning, or start delays.
+        // A better method may be to supply your own AudioSource and attach it to a GameObject,
+        // or calculate the panning yourself.
         public void PlayAt(Sound sound, Vector3 position, System.Action<Sound> onComplete = null)
         {
             PlayAs(sound, sound.GetPitch(), sound.GetVolume(), sound.GetPan(), sound.looping, onComplete, position);

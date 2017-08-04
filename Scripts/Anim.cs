@@ -31,7 +31,7 @@ using UnityEditorInternal;
 namespace Spewnity
 {
     [ExecuteInEditMode]
-    public class Anim : MonoBehaviour
+    public class  Anim : MonoBehaviour
     {
         public bool livePreview;
         public string sequenceName;
@@ -65,7 +65,7 @@ namespace Spewnity
 
         public void Start()
         {
-            Play(sequenceName);
+            Replay(sequenceName, paused);
         }
 
         public void OnValidate()
@@ -73,11 +73,19 @@ namespace Spewnity
             UpdateCache();
 
             if (livePreview && (sequence == null || sequence.name != sequenceName))
-                Play(sequenceName);
+                Replay(sequenceName);
         }
 
-        public void Play(string name)
-        {         
+        public void Play(string name, bool startPaused = false)
+        {
+            if(sequenceName == name)
+                return;
+
+            Replay(name);
+        }
+
+        public void Replay(string name, bool startPaused = false)
+        {      
             if(name == null || name == "")
             {
                 Clear();
@@ -94,7 +102,7 @@ namespace Spewnity
             sequenceName = name;
             frame = 0;
             elapsed = 0;
-            paused = false;
+            paused = startPaused;
             UpdateView();
         }
 

@@ -20,12 +20,14 @@ namespace Spewnity
         public bool previewShake = false;
         [Tooltip("If true, assumes Camera.main is the camera; otherwise expects this component is attached to a Camera object")]
         public bool useCameraMain = false;
+        [Tooltip("When following a target, if nonzero, the amount of time the camera lag behinds the target")]
+        public float followLag = 0.25f;
 
         private Transform followTarget;
         private float curShakeStrength;
         private float curShakeDuration;
         private bool fadingShake;
-        private float shakeTimeRemaining = 0;
+        private float shakeTimeRemaining = 0f;
         private Vector3 camCenter;
 
         void Awake()
@@ -35,7 +37,7 @@ namespace Spewnity
                 throw new UnityException("Since useCameraMain is disabled, CameraManager must be attached to the camera GameObject");
         }
 
-        void Update()
+        void FixedUpdate()
         {
 #if UNITY_EDITOR			
             if (previewShake)
@@ -52,8 +54,14 @@ namespace Spewnity
 
             UpdateCamCenter();
             Vector2 shake = GetShakeOffset();
-            Transform camTransform = (useCameraMain ? Camera.main.transform : transform);
-            camTransform.position = camCenter + (Vector3) shake;
+            Transform camTransform = (useCameraMain ? Camera.main.transform : transform); // TODO Cache this
+            if (followLag <= 0f)
+                camTransform.position = camCenter + (Vector3) shake;
+            else
+            {
+                camTransform.position = Vector3.Lerp(camTransform.position, camCenter,
+                     Time.deltaTime / followLag) + (Vector3) shake;
+            }
         }
 
         private void UpdateCamCenter()

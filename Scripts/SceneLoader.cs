@@ -9,8 +9,8 @@ namespace Spewnity
     /**
         Triggers the loading of another scene when certain conditions are met:
 
-        Awake: Triggers when during GameObject.Awake()
-        Start: Triggers when during GameObject.Awake()
+        Awake: Triggers during GameObject.Awake()
+        Start: Triggers during GameObject.Start()
         TriggerEnter2D: Triggers when an collidable object enters the collider's bounding volume. Collider2D required.
         MouseDown: Triggers when the mouse is pressed while pointing inside the collider's bounding volume. Collider2D required.
         KeyDown: Triggers when a key is pressed; define one or more keys in keyCodes.

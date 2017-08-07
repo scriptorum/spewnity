@@ -1,5 +1,7 @@
 ﻿//
 // A 2D integer point for tile maps
+// TODO: Generic parameters, Point<int> vs Point<float>
+// TODO: Vector conversions, such as GetAngle(), GetMagnitude(), Normalize(), and Point.FromAngle(angle, magnitude)
 //
 namespace Spewnity
 {

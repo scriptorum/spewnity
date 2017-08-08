@@ -5,6 +5,24 @@ using UnityEngine;
 namespace Spewnity
 {
     /**
+        CameraManager provides several functions to ease 2D camera management.
+        
+         - Camera Shake. Call Shake() to shake the camera. You can supply a duration and strength, and
+           whether or not you want the strength to fade out linearly over time. You can define these values
+           as properties of the Camera Manager, or supply ad hoc properties in the call. Also, in run time,
+           you can click on the Preview Shake checkbox to sample the shake. The camera can shake while it
+           is doing other things. You can stop a shake in progress by calling StopShaking().
+
+         - Follow Target. Call FollowTarget() to provide a Transform of the object to follow. This will
+           stop any on-going dollying. If a lag is supplied, the camera will adjust its position to the target
+           over time, so while the target is moving the camera will lag behind, and when it stops it will catch 
+           up. Lag time eases out, such that it will reach 90% of the target in 50% of the time, and 99% of the 
+           target in 100% of the time. To stop following, call Clear(), or set another target.
+
+         - CutTo and Dolly. You can move the camera to a specific position instantly by calling CutTo(), 
+           or over time by calling Dolly(). This will work while the camera is shaking, but it will stop target 
+           following. The speed of the dolly follows the same principles as camera lag, defined above. To stop 
+           dollying, call Clear().
      */
     public class CameraManager : MonoBehaviour
     {
@@ -15,7 +33,7 @@ namespace Spewnity
         [Tooltip("When shaking the camera, the duration of the effect in seconds")]
         public float defShakeDuration = 0.25f;
         [Tooltip("When following a target or dollying, if nonzero, the amount of time the camera lag behinds the target")]
-        public float defCameraLag = 1f; // The lag will ease-out, so it gets within 90% of the target in half the lag time
+        public float defCameraLag = 1f;
         [Tooltip("When shaking the camera, whether to fade out the strength of the effect over the duration or not")]
         public bool shakeFadeOut = true;
         [Tooltip("Lets you preview the camera shake effect, when debugging in the editor, in play mode; just click")]
@@ -114,10 +132,17 @@ namespace Spewnity
             camCenter = (useCameraMain ? Camera.main.transform.position : transform.position);
         }
 
+        // Clears target following and dollying. Does not stop shaking.
         public void Clear()
         {
             this.followTarget = null;
             dollying = false;
+        }
+        
+        // Stops all camera shaking
+        public void StopShaking()
+        {
+            shakeTimeRemaining = 0f;
         }
 
         // Sets the camera to follow a target.
@@ -140,17 +165,17 @@ namespace Spewnity
             camCenter = camTransform.position;
         }
 
-        // Dollies the camera to a specific position, using the speed specified by lag.
-        // Note that all camera movement eases out, so it will reach 90% of the target in half the lag time.
-        // If lag is not provided, uses the default lag. Using a lag of 0f will work the same as CutTo.
-        // If the CameraManager was following, it stops doing that.
-        public void DollyTo(Vector2 position, float? cameraLag = null)
+        // Dollies the camera to a specific position over the amount of time specified by speed.
+        // Note that all camera movement eases out, so it will reach 90% of the target in half the time.
+        // If speed is not provided, uses the default camera lag. Using a speed 0f will work the same as CutTo().
+        // If the CameraManager was following a target, it stops doing that.
+        public void DollyTo(Vector2 position, float? speed = null)
         {
             Clear();
             Transform camTransform = (useCameraMain ? Camera.main.transform : transform); // TODO Cache this
             camCenter = new Vector3(position.x, position.y, camTransform.position.z);
             dollying = true;
-            this.cameraLag = (cameraLag == null ? this.defCameraLag : (float) cameraLag);
+            this.cameraLag = (speed == null ? this.defCameraLag : (float) speed);
         }
     }
 }

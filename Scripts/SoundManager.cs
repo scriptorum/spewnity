@@ -1,9 +1,12 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
-using UnityEditor;
 using UnityEngine;
 using UnityEngine.Audio;
 using UnityEngine.Events;
+
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 /**
  * TODO Support global volume setting.
@@ -31,6 +34,7 @@ namespace Spewnity
         [HideInInspector]
         public bool soundsInitialized = false;
 
+#if UNITY_EDITOR
         [ExecuteInEditMode]
         void OnValidate()
         {
@@ -80,7 +84,7 @@ namespace Spewnity
                     UnityEditor.EditorApplication.delayCall += () => { DestroyImmediate(source); };
             }
         }
-
+#endif
         void Awake()
         {
             if (dontDestroyOnLoad || (instance != null && instance.dontDestroyOnLoad))

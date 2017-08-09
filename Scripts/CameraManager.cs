@@ -4,26 +4,18 @@ using UnityEngine;
 
 namespace Spewnity
 {
-    /**
-        CameraManager provides several functions to ease 2D camera management.
-        
-         - Camera Shake. Call Shake() to shake the camera. You can supply a duration and strength, and
-           whether or not you want the strength to fade out linearly over time. You can define these values
-           as properties of the Camera Manager, or supply ad hoc properties in the call. Also, in run time,
-           you can click on the Preview Shake checkbox to sample the shake. The camera can shake while it
-           is doing other things. You can stop a shake in progress by calling StopShaking().
-
-         - Follow Target. Call FollowTarget() to provide a Transform of the object to follow. This will
-           stop any on-going dollying. If a lag is supplied, the camera will adjust its position to the target
-           over time, so while the target is moving the camera will lag behind, and when it stops it will catch 
-           up. Lag time eases out, such that it will reach 90% of the target in 50% of the time, and 99% of the 
-           target in 100% of the time. To stop following, call Clear(), or set another target.
-
-         - CutTo and Dolly. You can move the camera to a specific position instantly by calling CutTo(), 
-           or over time by calling Dolly(). This will work while the camera is shaking, but it will stop target 
-           following. The speed of the dolly follows the same principles as camera lag, defined above. To stop 
-           dollying, call Clear().
-     */
+    /// <summary>
+    /// CameraManager provides several functions to ease 2D camera management.
+    /// <para>Camera shaking, follow a moving target, cut to or dolly to a specific position, 
+    /// or zoom to a specific camera size.</para>
+    /// <para>Note all animation is done using a non-linear ease-out curve, whereby it will reach 
+    /// the 99% of the target within the duration indicated, and 90% of the target within half the duration.</para>
+    /// <para>Zooming manipulates the camera's orthographicSize or fieldOfView. You may want to set up a second
+    /// camera to show your HUD, so that camera is not scaled. To do this: create a new Camera for your HUD, set
+    /// clearFlags to DepthOnly, give it a depth higher than your main camera (say, 1). Put all your HUD GameObjects
+    /// on their own layer (e.g., UI), and set the HUD camera's culling mask to just render UI. Set your main camera
+    /// to render everything but UI using the culling mask.
+    /// </summary>
     public class CameraManager : MonoBehaviour
     {
         [Tooltip("If you have only one CameraManager instance, you can access it through CameraManager.instance")]
@@ -32,8 +24,8 @@ namespace Spewnity
         public float defShakeStrength = 0.1f;
         [Tooltip("When shaking the camera, the duration of the effect in seconds")]
         public float defShakeDuration = 0.25f;
-        [Tooltip("When following a target or dollying, if nonzero, the amount of time the camera lag behinds the target")]
-        public float defCameraLag = 1f;
+        [Tooltip("When following, dollying or zooming, the amount of time it takes to reach the target")]
+        public float defSpeed = 1f;
         [Tooltip("When shaking the camera, whether to fade out the strength of the effect over the duration or not")]
         public bool shakeFadeOut = true;
         [Tooltip("Lets you preview the camera shake effect, when debugging in the editor, in play mode; just click")]
@@ -44,19 +36,41 @@ namespace Spewnity
         private Transform followTarget;
         private float shakeStrength;
         private float shakeDuration;
-        private float cameraLag;
+        private float moveSpeed;
         private bool fadingShake = false;
         private bool dollying = false;
         private float shakeTimeRemaining = 0f;
         private Vector3 camCenter;
+        private Camera cam;
+        private float initialZoom;
+        private float targetZoom;
+        private float zoomTimeRemaining = 0f;
+        private float zoomSpeed;
 
         void Awake()
         {
             instance = this;
-            if (!useCameraMain && GetComponent<Camera>() == null)
-                throw new UnityException("Since useCameraMain is disabled, CameraManager must be attached to the camera GameObject");
+            UpdateCamera();
         }
 
+#if UNITY_EDITOR
+        void OnValidate()
+        {
+            UpdateCamera();
+        }
+#endif
+
+        private void UpdateCamera()
+        {
+            cam = (useCameraMain ? Camera.main : gameObject.GetComponent<Camera>());
+            if (cam == null)
+            {
+                if (useCameraMain)
+                    throw new UnityException("Cannot locate main camera");
+                else throw new UnityException("Since useCameraMain is disabled, CameraManager must be attached to the camera GameObject");
+            }
+            else initialZoom = cam.orthographic ? cam.orthographicSize : cam.fieldOfView;
+        }
         void FixedUpdate()
         {
 #if UNITY_EDITOR			
@@ -69,23 +83,40 @@ namespace Spewnity
             }
 #endif			
 
+            UpdateZoomLevel();
             if (shakeTimeRemaining <= 0f && followTarget == null && dollying == false)
                 return;
 
             UpdateCamCenter();
             Vector2 shake = GetShakeOffset();
-            Transform camTransform = (useCameraMain ? Camera.main.transform : transform); // TODO Cache this
-            if (!dollying && cameraLag <= 0f)
-                camTransform.position = camCenter + (Vector3) shake;
+            if (!dollying && moveSpeed <= 0f)
+                cam.transform.position = camCenter + (Vector3) shake;
             else
             {
                 // 4.5 - This magic number gets us to about 99% of the target after the desired number of frames.
                 // Do I understand the math? Hell no. But this was the shit I was entering in Wolfram Alpha:
                 //      a=b*v, b=c*v, c=d*v,d=v
                 //      v=(g(n) - g(1 + n))/(g(n) - 100) where 100 is a target value.
-                camTransform.position = Vector3.Lerp(camTransform.position, camCenter,
-                    4.5f * Time.deltaTime / cameraLag) + (Vector3) shake;
+                cam.transform.position = Vector3.Lerp(cam.transform.position, camCenter,
+                    4.5f * Time.deltaTime / moveSpeed) + (Vector3) shake;                    
             }
+        }
+
+        private void UpdateZoomLevel()
+        {
+            if (zoomTimeRemaining <= 0f)
+                return;
+
+            zoomTimeRemaining -= Time.deltaTime;
+            if (zoomTimeRemaining < 0)
+                zoomTimeRemaining = 0;
+
+            float amount = Mathf.Lerp((cam.orthographic ? cam.orthographicSize : cam.fieldOfView),
+                targetZoom, 4.5f * Time.deltaTime / zoomSpeed);
+
+            if (cam.orthographic)
+                cam.orthographicSize = amount;
+            else cam.fieldOfView = amount;
         }
 
         private void UpdateCamCenter()
@@ -114,16 +145,23 @@ namespace Spewnity
             return Vector2.zero;
         }
 
-        // Starts the camera shake as defined by the default properties.
+        /// <summary>
+        /// Starts the camera shake as defined by the default properties. 
+        /// <see cref="Shake(float,float,bool)"/>
+        /// </summary>
         public void Shake()
         {
             Shake(defShakeStrength, defShakeDuration, shakeFadeOut);
         }
 
-        // Starts the camera shake as defined by ad-hoc properties.
-        // Strength is how far the camera can veer off-center +/-. 
-        // Duration is how long the shaking lasts.
-        // If fadeStrength is true, the strength is linearly reduced over the time of the shaking.
+        /// <summary>
+        /// Starts the camera shake as defined by ad-hoc properties. 
+        /// <para>You can click on the Preview Shake checkbox to sample the shake while running in the editor.</para>
+        /// <para>To stop the camera shaking, call StopShaking()</para>
+        /// </summary>
+        /// <param name="shakeStrength">How far the camera can veer off-center +/-. </param>
+        /// <param name="shakeDuration">How long the shaking lasts.</param>
+        /// <param name="fadeStrength">If true, the strength is linearly reduced over the time of the shaking.</param>
         public void Shake(float shakeStrength, float shakeDuration, bool fadeStrength = true)
         {
             this.shakeStrength = shakeStrength;
@@ -132,50 +170,107 @@ namespace Spewnity
             camCenter = (useCameraMain ? Camera.main.transform.position : transform.position);
         }
 
-        // Clears target following and dollying. Does not stop shaking.
-        public void Clear()
+        /// <summary>
+        /// Stops any dollying or following of a target. Clears the target.
+        /// <para>Does not stop shaking or zooming</para>
+        /// </summary>
+        public void StopMoving()
         {
-            this.followTarget = null;
+            followTarget = null;
             dollying = false;
         }
-        
-        // Stops all camera shaking
+
+        /// <summary>
+        /// Stops all camera shaking
+        /// </summary>
         public void StopShaking()
         {
             shakeTimeRemaining = 0f;
         }
 
-        // Sets the camera to follow a target.
-        // If lag is not provided, uses the default lag. Supply 0f if you want instant following.
-        // If the CameraManager was dollying, it stops doing that.
-        public void FollowTarget(Transform target, float? cameraLag = null)
+        /// <summary>
+        /// Stops any active zooming operation.
+        /// </summary>
+        public void StopZooming()
         {
-            Clear();
-            this.followTarget = target;
-            this.cameraLag = (cameraLag == null ? this.defCameraLag : (float) cameraLag);
+            zoomTimeRemaining = 0f;
         }
 
-        // Jumps the camera to a specific position, immediately.
-        // If the CameraManager was dollying or following, it stops doing that.
+        /// <summary>
+        /// Resets the zoom level to its initial value.
+        /// </summary>
+        public void ResetZoom()
+        {
+            SetZoom(1f);
+        }
+
+        /// <summary>
+        /// Sets the camera to follow a target.
+        /// <para>This also stops dollying</para>
+        /// </summary>
+        /// <param name="target">The Transform of the GameObject to follow; the camera will center over this object</param>
+        /// <param name="speed">The amount of time the camera will take to catch up to the target. Supply 0 if you don't want any camera lag.</param>
+        public void FollowTarget(Transform target, float? speed = null)
+        {
+            StopMoving();
+            this.followTarget = target;
+            this.moveSpeed = (speed == null ? this.defSpeed : (float) speed);
+        }
+
+        /// <summary>
+        /// Jumps the camera to a specific position, immediately.
+        /// <para>If the CameraManager was dollying or following a target, it stops doing that.</para>
+        /// </summary>
+        /// <param name="position">Sets the absolute center point of the camera</param>
         public void CutTo(Vector2 position)
         {
-            Clear();
-            Transform camTransform = (useCameraMain ? Camera.main.transform : transform); // TODO Cache this
-            camTransform.position = new Vector3(position.x, position.y, camTransform.position.z);
-            camCenter = camTransform.position;
+            StopMoving();
+            cam.transform.position = new Vector3(position.x, position.y, cam.transform.position.z);
+            camCenter = cam.transform.position;
         }
 
-        // Dollies the camera to a specific position over the amount of time specified by speed.
-        // Note that all camera movement eases out, so it will reach 90% of the target in half the time.
-        // If speed is not provided, uses the default camera lag. Using a speed 0f will work the same as CutTo().
-        // If the CameraManager was following a target, it stops doing that.
+        /// <summary>
+        /// Dollies the camera to a specific position over the amount of time specified by speed.
+        /// <para>Note that all camera movement eases out, so it will reach 90% of the target in half the time.</para>
+        /// <para>If the CameraManager was following a target, it stops doing that.</para>
+        /// </summary>
+        /// <param name="position">Sets the desired absolute center point of the camera</param>
+        /// <param name="speed">If not provided, uses the default move speed. Using a speed 0 will work the same as CutTo().</param>
         public void DollyTo(Vector2 position, float? speed = null)
         {
-            Clear();
-            Transform camTransform = (useCameraMain ? Camera.main.transform : transform); // TODO Cache this
-            camCenter = new Vector3(position.x, position.y, camTransform.position.z);
+            StopMoving();
+            camCenter = new Vector3(position.x, position.y, cam.transform.position.z);
             dollying = true;
-            this.cameraLag = (speed == null ? this.defCameraLag : (float) speed);
+            this.moveSpeed = (speed == null ? this.defSpeed : (float) speed);
+        }
+
+        /// <summary>
+        /// Sets the zoom level of the camera.
+        /// <para>This change to zoom level is immediate.</para>
+        /// <see crf="Zoom"/> for more information
+        /// </summary>
+        /// <param name="scale">The amount to scale orthographic size or field-of-view. 1 is none.</param>
+        public void SetZoom(float scale)
+        {
+            StopZooming();
+            float amount = initialZoom * scale;
+            if (cam.orthographic)
+                cam.orthographicSize = amount;
+            else cam.fieldOfView = amount;
+        }
+
+        /// <summary>
+        /// Begins to zoom in or out to the desired zoom scale, over time.
+        /// <para>This works by setting the orthographic size or field-of-view of the camera.</para>
+        /// <see crf="ResetZoom"/>
+        /// <see crf="StopZoom"/>
+        /// </summary>
+        /// <param name="scale">The amount to scale orthographic size or field-of-view. 1 is none.</param>
+        /// <param name="speed">The amount of time before it reaches the target scale.</param>
+        public void ZoomTo(float scale, float? speed = null)
+        {
+            zoomSpeed = zoomTimeRemaining = (speed == null ? this.defSpeed : (float) speed);
+            targetZoom = initialZoom * scale;
         }
     }
 }

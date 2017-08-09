@@ -4,10 +4,10 @@ using UnityEngine;
 
 namespace Spewnity
 {
-	/**
-		Attach this component to a GameObject with a particle system. When the particle system is 
-		no longer producing particles and all particles are dead, it will destroy the GameObject.
-	 */
+     /// <summary>
+     /// Attach this component to a GameObject with a particle system. When the particle system is 
+     /// no longer producing particles and all particles are dead, it will destroy the GameObject.
+     /// </summary>
     public class DestroyParticleSystem : MonoBehaviour
     {
 		[Tooltip("Includes child particle systems in the check")]

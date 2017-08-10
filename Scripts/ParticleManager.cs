@@ -4,7 +4,7 @@ using Spewnity.ParticleManagerInternal;
 using UnityEngine;
 using UnityEngine.Events;
 
-// TODO FIX: Some births aren't being caught - all deaths are, though! HRM.
+// TODO FIX: Some births aren't being caught. Seems to be an issue with the ParticleSystem. Bug reported.
 namespace Spewnity
 {
     /// <summary>
@@ -22,8 +22,6 @@ namespace Spewnity
         [Header("Self Destruction")]
         [Tooltip("When checked, will destroy this GameObject when the attached ParticleSystem has finished its job")]
         public bool destroyWhenFinished = false;
-        [Tooltip("Includes child particle systems in finished check")]
-        public bool includeChildren = true;
 
         [Header("Events")]
         public ParticleSystemEvent systemStarted;
@@ -47,14 +45,15 @@ namespace Spewnity
         {
             particleBorn.ThrowIfNull();
             if (particleBorn.GetPersistentEventCount() > 0)
-                AddSubEmitter(ref psBirthTester, ParticleSystemSubEmitterType.Birth, particleBorn);
+                AddSubEmitter(ref psBirthTester, ParticleSystemSubEmitterType.Birth, (v) => { particleBorn.Invoke(v); });
 
             particleDied.ThrowIfNull();
             if (particleDied.GetPersistentEventCount() > 0)
-                AddSubEmitter(ref psDeathTester, ParticleSystemSubEmitterType.Death, particleDied);
+                AddSubEmitter(ref psDeathTester, ParticleSystemSubEmitterType.Death, (v) => { particleDied.Invoke(v); });
         }
 
-        private void AddSubEmitter(ref ParticleSystem subPS, ParticleSystemSubEmitterType type, ParticleEvent callback)
+        private void AddSubEmitter(ref ParticleSystem subPS, ParticleSystemSubEmitterType type,
+            System.Action<Vector3> callback)
         {
             // Create SubEmitter object
             GameObject go = new GameObject("subemitter-" + type.ToString());
@@ -73,10 +72,9 @@ namespace Spewnity
             main.startSize = 0f;
             main.startSpeed = 0f;
             main.maxParticles = ps.main.maxParticles;
-            main.loop = false;
-            main.playOnAwake = false;
+            main.loop = true;
+            main.playOnAwake = true;
             ParticleSystem.EmissionModule emission = subPS.emission;
-            emission.enabled = true;
             emission.rateOverTime = 0f;
             emission.SetBursts(new ParticleSystem.Burst[]
             {
@@ -101,7 +99,7 @@ namespace Spewnity
         {
             if (alive)
             {
-                if (!ps.IsAlive(includeChildren))
+                if (!ps.IsAlive())
                 {
                     systemFinished.Invoke(ps);
                     if (destroyWhenFinished)
@@ -111,7 +109,7 @@ namespace Spewnity
             }
             else
             {
-                if (ps.IsAlive(includeChildren))
+                if (ps.IsAlive())
                 {
                     systemStarted.Invoke(ps);
                     alive = true;
@@ -131,7 +129,7 @@ namespace Spewnity.ParticleManagerInternal
 {
     public class SubEmitterHandler : MonoBehaviour
     {
-        public ParticleEvent callback;
+        public System.Action<Vector3> callback;
         private ParticleSystem ps;
         private ParticleSystem.Particle[] particles;
 
@@ -148,7 +146,7 @@ namespace Spewnity.ParticleManagerInternal
                 int count = ps.GetParticles(particles);
                 Debug.Assert(count == ps.particleCount);
                 for (int i = 0; i < count; i++)
-                    callback.Invoke(particles[i].position);
+                    callback(particles[i].position);
                 ps.Clear();
             }
         }

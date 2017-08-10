@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+// TODO Rework exposed interface - for example, maybe someone would want to set target in the editor?
 namespace Spewnity
 {
     /// <summary>

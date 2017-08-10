@@ -145,7 +145,6 @@ namespace Spewnity.ParticleManagerInternal
         {
             if (ps.particleCount > 0)
             {
-                cnt += ps.particleCount;
                 int count = ps.GetParticles(particles);
                 Debug.Assert(count == ps.particleCount);
                 for (int i = 0; i < count; i++)

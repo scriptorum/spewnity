@@ -8,8 +8,8 @@ namespace Spewnity
     /// CameraManager provides several functions to ease 2D camera management.
     /// <para>Camera shaking, follow a moving target, cut to or dolly to a specific position, 
     /// or zoom to a specific camera size.</para>
-    /// <para>Note all animation is done using a non-linear ease-out curve, whereby it will reach 
-    /// the 99% of the target within the duration indicated, and 90% of the target within half the duration.</para>
+    /// <para>Note all dolly/follow animation is done using a non-linear continuous ease-out curve, whereby it will reach 
+    /// approximately 99% of the target within the duration indicated, and 90% of the target within half the duration.</para>
     /// <para>Zooming manipulates the camera's orthographicSize or fieldOfView. You may want to set up a second
     /// camera to show your HUD, so that camera is not scaled. To do this: create a new Camera for your HUD, set
     /// clearFlags to DepthOnly, give it a depth higher than your main camera (say, 1). Put all your HUD GameObjects
@@ -33,6 +33,7 @@ namespace Spewnity
         [Tooltip("If true, assumes Camera.main is the camera; otherwise expects this component is attached to a Camera object")]
         public bool useCameraMain = false;
 
+        private const float CONTINUOUS_EASING = 4.6f; // Gets us to 99% of move target over duration
         private Transform followTarget;
         private float shakeStrength;
         private float shakeDuration;
@@ -93,12 +94,8 @@ namespace Spewnity
                 cam.transform.position = camCenter + (Vector3) shake;
             else
             {
-                // 4.5 - This magic number gets us to about 99% of the target after the desired number of frames.
-                // Do I understand the math? Hell no. But this was the shit I was entering in Wolfram Alpha:
-                //      a=b*v, b=c*v, c=d*v,d=v
-                //      v=(g(n) - g(1 + n))/(g(n) - 100) where 100 is a target value.
-                cam.transform.position = Vector3.Lerp(cam.transform.position, camCenter,
-                    4.5f * Time.deltaTime / moveSpeed) + (Vector3) shake;                    
+                float t = CONTINUOUS_EASING * Time.deltaTime / moveSpeed;
+                cam.transform.position = Vector3.Lerp(cam.transform.position, camCenter, t) + (Vector3) shake;
             }
         }
 
@@ -106,13 +103,19 @@ namespace Spewnity
         {
             if (zoomTimeRemaining <= 0f)
                 return;
-
             zoomTimeRemaining -= Time.deltaTime;
-            if (zoomTimeRemaining < 0)
-                zoomTimeRemaining = 0;
 
-            float amount = Mathf.Lerp((cam.orthographic ? cam.orthographicSize : cam.fieldOfView),
-                targetZoom, 4.5f * Time.deltaTime / zoomSpeed);
+            float amount = 0;
+            if (zoomTimeRemaining < 0)
+            {
+                zoomTimeRemaining = 0;
+                amount = targetZoom;
+            }
+            else
+            {
+                float t = 1 - zoomTimeRemaining / zoomSpeed;
+                amount = Mathf.Lerp((cam.orthographic ? cam.orthographicSize : cam.fieldOfView), targetZoom, t);
+            }
 
             if (cam.orthographic)
                 cam.orthographicSize = amount;
@@ -265,7 +268,7 @@ namespace Spewnity
         /// <see crf="ResetZoom"/>
         /// <see crf="StopZoom"/>
         /// </summary>
-        /// <param name="scale">The amount to scale orthographic size or field-of-view. 1 is none.</param>
+        /// <param name="scale">The amount to scale orthographic size or field-of-view. A value of 2 is zoomed out to show double the view, and 0.5 zoomed in to halve the view. 1 resets to the initial size. </param>
         /// <param name="speed">The amount of time before it reaches the target scale.</param>
         public void ZoomTo(float scale, float? speed = null)
         {

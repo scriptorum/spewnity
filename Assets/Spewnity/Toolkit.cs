@@ -339,5 +339,34 @@ namespace Spewnity
         {
             if (o == null) throw new System.NullReferenceException(msg);
         }
+
+        /// <summary>
+        /// Instantiates a GameObject from a prefab, assigns its parent, and optionally
+        /// sets its position relative to its parent.
+        /// </summary>
+        /// <param name="prefab">The prefab to instantiate</param>
+        /// <param name="parent">The parent to assign</param>
+        /// <param name="position">Optionally, the position to assign, relative to parent; if not supplied, position will be zero</param>
+        /// <returns>The instantiated object</returns>
+        public static GameObject CreateChild(this GameObject prefab, Transform parent, Vector3? position = null)
+        {
+            return GameObject.Instantiate(prefab, (position == null ? Vector3.zero : (Vector3) position),
+                Quaternion.identity, parent);
+        }
+
+        /// <summary>
+        /// Instatiates a GameObject from a prefab, sets its position in world space, 
+        /// and optionally assigns its parent.
+        /// </summary>
+        /// <param name="prefab">The prefab to instantiate</param>
+        /// <param name="position">The position to assign, in worldspace</param>
+        /// <param name="parent">Optionally, the parent to assign</param>
+        /// <returns></returns>
+        public static GameObject Create(this GameObject prefab, Vector3 position, Transform parent = null)
+        {
+            GameObject go = GameObject.Instantiate(prefab, position, Quaternion.identity);
+            go.transform.parent = parent;
+            return go;
+        }
     }
 }

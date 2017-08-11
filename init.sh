@@ -27,7 +27,7 @@ dir=`dirname $0`
 cp -rf "${dir}/Assets/"* $path
 
 echo Copying gitignore
-cp "${dir}/.gitignore" $path
+cp "${dir}/.gitignore" $1
 
 echo Creating common folders
 mkdir -p "${dir}/Assets/Scenes/"
@@ -37,3 +37,4 @@ mkdir -p "${dir}/Assets/Art/"
 mkdir -p "${dir}/Assets/Audio/"
 mkdir -p "${dir}/Assets/Prefabs/"
 mkdir -p "${dir}/Assets/Fonts/"
+mkdir -p "${dir}/Raw/AudioRecs"

@@ -5,13 +5,13 @@ using UnityEngine;
 /**
     This provides a simple way to offload coroutine ownership to another GameObject.
     Simply attach this component to a new GameObject, and run coroutines with
-    CoroutineManager.instance.Run(YourCoroutineFunc());
+    CoroutineHelper.instance.Run(YourCoroutineFunc());
  */
 namespace Spewnity
 {
-    public class CoroutineManager : MonoBehaviour
+    public class CoroutineHelper : MonoBehaviour
     {
-        public static CoroutineManager instance;
+        public static CoroutineHelper instance;
 
         void Awake()
         {

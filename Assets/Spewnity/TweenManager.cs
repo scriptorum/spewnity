@@ -80,9 +80,9 @@ namespace Spewnity
             {
                 TweenTemplate template = tween.template;
                 tween.timeRemaining -= Time.deltaTime;
-                if(tween.timeRemaining < 0f)
+                if (tween.timeRemaining < 0f)
                     tween.timeRemaining = 0f;
-                float t = tween.timeRemaining / template.duration;
+                float t = 1 - tween.timeRemaining / template.duration;
                 if (template.easing.length > 0)
                     t = template.easing.Evaluate(t);
                 Vector4 value = Vector4.LerpUnclamped(tween.startValue.value, tween.endValue.value, t);

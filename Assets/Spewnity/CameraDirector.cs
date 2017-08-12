@@ -6,7 +6,7 @@ using UnityEngine;
 namespace Spewnity
 {
     /// <summary>
-    /// CameraManager provides several functions to ease 2D camera management.
+    /// CameraDirector provides several functions to ease 2D camera management.
     /// <para>Camera shaking, follow a moving target, cut to or dolly to a specific position, 
     /// or zoom to a specific camera size.</para>
     /// <para>Note all dolly/follow animation is done using a non-linear continuous ease-out curve, whereby it will reach 
@@ -17,10 +17,10 @@ namespace Spewnity
     /// on their own layer (e.g., UI), and set the HUD camera's culling mask to just render UI. Set your main camera
     /// to render everything but UI using the culling mask.
     /// </summary>
-    public class CameraManager : MonoBehaviour
+    public class CameraDirector : MonoBehaviour
     {
-        [Tooltip("If you have only one CameraManager instance, you can access it through CameraManager.instance")]
-        public static CameraManager instance;
+        [Tooltip("If you have only one CameraDirector instance, you can access it through CameraDirector.instance")]
+        public static CameraDirector instance;
         [Tooltip("When shaking the camera, the maximum amount of +/- offset applied to the xy position")]
         public float defShakeStrength = 0.1f;
         [Tooltip("When shaking the camera, the duration of the effect in seconds")]
@@ -69,7 +69,7 @@ namespace Spewnity
             {
                 if (useCameraMain)
                     throw new UnityException("Cannot locate main camera");
-                else throw new UnityException("Since useCameraMain is disabled, CameraManager must be attached to the camera GameObject");
+                else throw new UnityException("Since useCameraMain is disabled, CameraDirector must be attached to the camera GameObject");
             }
             else initialZoom = cam.orthographic ? cam.orthographicSize : cam.fieldOfView;
         }
@@ -223,7 +223,7 @@ namespace Spewnity
 
         /// <summary>
         /// Jumps the camera to a specific position, immediately.
-        /// <para>If the CameraManager was dollying or following a target, it stops doing that.</para>
+        /// <para>If the CameraDirector was dollying or following a target, it stops doing that.</para>
         /// </summary>
         /// <param name="position">Sets the absolute center point of the camera</param>
         public void CutTo(Vector2 position)
@@ -236,7 +236,7 @@ namespace Spewnity
         /// <summary>
         /// Dollies the camera to a specific position over the amount of time specified by speed.
         /// <para>Note that all camera movement eases out, so it will reach 90% of the target in half the time.</para>
-        /// <para>If the CameraManager was following a target, it stops doing that.</para>
+        /// <para>If the CameraDirector was following a target, it stops doing that.</para>
         /// </summary>
         /// <param name="position">Sets the desired absolute center point of the camera</param>
         /// <param name="speed">If not provided, uses the default move speed. Using a speed 0 will work the same as CutTo().</param>

@@ -347,7 +347,8 @@ namespace Spewnity
         /// </summary>
         public static void ThrowIfNull(this object o, string msg = "NullReferenceException")
         {
-            if (o == null) throw new System.NullReferenceException(msg);
+            if (o == null || o.Equals(null))
+                throw new System.NullReferenceException(msg);
         }
 
         /// <summary>

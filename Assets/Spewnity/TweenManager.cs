@@ -15,7 +15,9 @@ using UnityEditorInternal;
 // TODO And also spawn template
 // TODO And also manipulate template list
 // TODO Ability to modify template parameters in tween
-// TODO Add Reverse, PingPong, and Cycles/Looping
+// TODO Add Reverse, PingPong, and Cycles/Looping, although some of this can be approximated with easing
+// TODO A Vec4 lerp is only needed for color, other TweenTypes will be more performant if you lerp just the parts you need.
+// TODO Add ColorWithoutAlpha?
 namespace Spewnity
 {
     public class TweenManager : MonoBehaviour
@@ -78,11 +80,12 @@ namespace Spewnity
             {
                 TweenTemplate template = tween.template;
                 tween.timeRemaining -= Time.deltaTime;
-
-                // TODO A Vec4 lerp is only needed for color, other TweenTypes will be more
-                //      performant if you lerp just the parts you need.
-                Vector4 value = Vector4.Lerp(tween.startValue.value, tween.endValue.value,
-                    template.easing.Evaluate(tween.timeRemaining / template.duration));
+                if(tween.timeRemaining < 0f)
+                    tween.timeRemaining = 0f;
+                float t = tween.timeRemaining / template.duration;
+                if (template.easing.length > 0)
+                    t = template.easing.Evaluate(t);
+                Vector4 value = Vector4.LerpUnclamped(tween.startValue.value, tween.endValue.value, t);
                 tween.value.value = value;
 
                 // Apply tween to object
@@ -338,7 +341,39 @@ namespace Spewnity
         SourceToDest
     }
 
+    //////////////////////////////////////////////////////////////////////////////// 
+
 #if UNITY_EDITOR
+    [CustomPropertyDrawer(typeof (TweenTemplate))]
+    public class TweenPropertyDrawer : PropertyDrawer
+    {
+        public override void OnGUI(Rect pos, SerializedProperty prop, GUIContent label)
+        {
+
+            EditorGUI.PropertyField(pos, prop, label, true);
+            if (prop.isExpanded)
+            {
+                float width = 80f;
+                GUI.enabled = Application.isPlaying;
+                if (GUI.Button(new Rect(pos.xMin + (pos.width - width) / 2, pos.yMax - 20f, width, 20f),
+                        new GUIContent("Live Preview", "When application is running, press this to preview the tween")))
+                {
+                    TweenManager tm = (TweenManager) prop.serializedObject.targetObject;
+                    string name = prop.serializedObject.FindProperty(prop.propertyPath + ".name").stringValue;
+                    tm.Play(name);
+                }
+            }
+            GUI.enabled = true;
+        }
+
+        public override float GetPropertyHeight(SerializedProperty prop, GUIContent label)
+        {
+            if (prop.isExpanded)
+                return EditorGUI.GetPropertyHeight(prop) + 20f;
+            return EditorGUI.GetPropertyHeight(prop);
+        }
+    }
+
     [CustomPropertyDrawer(typeof (TweenValue))]
     public class TweenValuePropertyDrawer : PropertyDrawer
     {

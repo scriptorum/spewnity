@@ -8,7 +8,7 @@ namespace Spewnity
     /// <summary>
     /// General functions for responding to callbacks. Can log messages and keep counts of calls.
     /// </summary>
-    public class CallbackManager : MonoBehaviour
+    public class CallbackHelper : MonoBehaviour
     {
         public bool logCountsNow = false;
         private const string DEFAULT_NAME = "default";

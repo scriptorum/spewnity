@@ -241,6 +241,16 @@ namespace Spewnity
         }
 
         /// <summary>
+        /// Capitalizes the first character of the string.
+        /// </summary>
+        /// <param name="str">The string to capitalize</param>
+        /// <returns>Returns the string with the first letter capitalized.</returns>
+        public static string ToInitCase(this string str)
+        {
+            return str.Substring(0, 1).ToUpper() + str.Substring(1);
+        }
+
+        /// <summary>
         /// True if the string is null or has no content
         /// </summary>
         public static bool IsEmpty(this string str)

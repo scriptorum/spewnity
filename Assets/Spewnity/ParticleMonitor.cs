@@ -1,6 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
-using Spewnity.ParticleManagerInternal;
+using Spewnity.ParticleMonitorInternal;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -17,7 +17,7 @@ namespace Spewnity
     /// if listeners have been registered by the time Start() is called.
     /// </para>
     /// </summary>
-    public class ParticleManager : MonoBehaviour
+    public class ParticleMonitor : MonoBehaviour
     {
         [Header("Self Destruction")]
         [Tooltip("When checked, will destroy this GameObject when the attached ParticleSystem has finished its job")]
@@ -125,7 +125,7 @@ namespace Spewnity
     public class ParticleSystemEvent : UnityEvent<ParticleSystem> { }
 }
 
-namespace Spewnity.ParticleManagerInternal
+namespace Spewnity.ParticleMonitorInternal
 {
     public class SubEmitterHandler : MonoBehaviour
     {

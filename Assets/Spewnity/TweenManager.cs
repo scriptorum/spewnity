@@ -14,6 +14,7 @@ using UnityEditorInternal;
 // TODO Add Reverse, PingPong, and Cycles/Looping, although some of this can be approximated with easing
 // TODO A Vec4 lerp is only needed for color, other TweenTypes will be more performant if you lerp just the parts you need.
 // TODO Add ColorWithoutAlpha?
+// TODO Chain tweens together?
 namespace Spewnity
 {
     public class TweenManager : MonoBehaviour
@@ -125,6 +126,7 @@ namespace Spewnity
         void Update()
         {
             Color color;
+            Vector3 vec;
 
             foreach(Tween tween in tweens)
             {
@@ -180,9 +182,15 @@ namespace Spewnity
                         break;
 
                     case TweenType.Rotation2D:
-                        Vector3 vec = tween.transform.eulerAngles;
+                        vec = tween.transform.eulerAngles;
                         vec.z = value.x;
                         tween.transform.eulerAngles = vec;
+                        break;
+
+                    case TweenType.LocalRotation2D:
+                        vec = tween.transform.localEulerAngles;
+                        vec.z = value.x;
+                        tween.transform.localEulerAngles = vec;
                         break;
 
                     case TweenType.Rotation3D:

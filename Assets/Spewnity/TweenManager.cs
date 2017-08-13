@@ -13,15 +13,29 @@ using UnityEditorInternal;
 // TODO Add Reverse, PingPong, and Cycles/Looping, although some of this can be approximated with easing
 // TODO A Vec4 lerp is only needed for color, other TweenTypes will be more performant if you lerp just the parts you need.
 // TODO Add ColorWithoutAlpha?
-// TODO Chain tweens together? Automatically chain together all tweens with the same name??? [X] Chain to other tweens with same name
+// TODO Editor and PropertyDrawer work is such a drag - look into attributes and helper functions
+// TODO Should Lerp be Unclamped for things like Colors?
+// TODO Some settings cause the initial value to be skipped inappropriately - e.g., Float 0-60 at 60FPS starts at 1 not 0.
+//      This is perhaps ok for ObjectToSource settings, but it's bad for pretty much everything else, no?
 namespace Spewnity
 {
+    /// <summary>
+    /// Another tweening system.
+    /// <para>You can specify tween templates in the inspector or through the API. Those templates tweens can be run 
+    /// as defined with Play(string), or they can be used as templates: clone and modify the tween, and then Play(tween).</para>
+    /// <para>The tweens system supports 2D and 3D transform tweening, as well as SpriteRenderer and Text color and 
+    /// alpha. Freely tween independent floats, vectors, and colors using the event system.</para>
+    /// <para>Preview your tweens live, just by clicking the button in the inspector while playing.</para>
+    /// <para>Hook in events for tween start, change, and stop. Call Play(string) from OnChange to chain template tweens, or 
+    /// make your callbacks to chain custom tweens.</para>
+    /// </summary>
     public class TweenManager : MonoBehaviour
     {
         public static TweenManager instance;
         public List<Tween> tweenTemplates;
 
-        private List<Tween> tweens; // active, running tweens
+        private List<Tween> tweens = new List<Tween>();
+        private List<Tween> tweensToAdd = new List<Tween>();
 
         /// <summary>
         /// Starts tweening the object as defined by the pre-defined template tween.
@@ -41,9 +55,7 @@ namespace Spewnity
         public void Play(Tween tween)
         {
             Debug.Assert(!tweens.Contains(tween), "Tween is already playing");
-            tween.Activate();
-            tweens.Add(tween);
-            tween.events.Start.Invoke(tween);
+            tweensToAdd.Add(tween);
         }
 
         /// <summary>
@@ -71,7 +83,7 @@ namespace Spewnity
         /// </summary>
         public void StopAll()
         {
-            tweens = new List<Tween>();
+            tweens.Clear();
         }
 
         /// <summary>
@@ -118,7 +130,6 @@ namespace Spewnity
             if (instance != this)
                 instance = this;
             else Debug.Log("There are multiple TweenManagers. Instance is set to the first.");
-            StopAll();
         }
 
         /// <summary>
@@ -129,6 +140,16 @@ namespace Spewnity
             Color color;
             Vector3 vec;
 
+            // Add new tweens to active tweens
+            foreach(Tween tween in tweensToAdd)
+            {
+                tween.Activate();
+                tweens.Add(tween);
+                tween.events.Start.Invoke(tween);
+            }
+            tweensToAdd.Clear();
+
+            // Process all active tweens
             foreach(Tween tween in tweens)
             {
                 tween.timeRemaining -= Time.deltaTime;
@@ -144,6 +165,10 @@ namespace Spewnity
                 switch (tween.tweenType)
                 {
                     case TweenType.Float:
+                    case TweenType.Vector2:
+                    case TweenType.Vector3:
+                    case TweenType.Vector4:
+                    case TweenType.Color:
                         break; // nothing to do here, no object, just callback
 
                     case TweenType.SpriteRendererAlpha:
@@ -215,12 +240,16 @@ namespace Spewnity
                 tween.events.Change.Invoke(tween);
                 if (tween.timeRemaining <= 0f)
                 {
+                    // Tween has finished loop
                     if (--tween.loopsRemaining != 0)
                         tween.Activate(false);
+
+                    // Tween has finished all iterations
                     else tween.events.End.Invoke(tween);
                 }
             }
 
+            // Remove any inactive tweens from list
             tweens.RemoveAll(t => t.loopsRemaining == 0);
         }
 
@@ -229,538 +258,570 @@ namespace Spewnity
             StopAll();
             tweenTemplates.ForEach(t => { if (t.loops == 0) t.loops = 1; }); // provide default of 1 for loops
         }
-    }
 
-    [System.Serializable]
-    public class Tween
-    {
-        [Tooltip("The unique name of the tween; required for template tweens")]
-        public string name;
-        [Tooltip("The duration of the tween in seconds, must be > 0")]
-        public float duration;
-        [Tooltip("The property that is being tweened")]
-        public TweenType tweenType;
-        [Tooltip("Determines if you are supplying both source and dest, or if you're fetching either value from the object being tweened")]
-        public RangeType rangeType;
-        [Tooltip("The starting value for the tween")]
-        public TweenValue source;
-        [Tooltip("Any GameObject, since they all have a Transform")]
-        public Transform transform = null;
-        [Tooltip("Any GameObject that has a SpriteRenderer component")]
-        public SpriteRenderer spriteRenderer = null;
-        [Tooltip("Any GameObject that has a Text component")]
-        public Text text = null;
-        [Tooltip("the ending value for the tween")]
-        public TweenValue dest;
-        [Tooltip("The number of times to play the tween; use -1 for infinite looping")]
-        public int loops;
-        [Tooltip("An optional easing curve")]
-        public AnimationCurve easing;
-        [Tooltip("Optional event notifications")]
-        public TweenEvents events;
-
-        [HideInInspector]
-        public TweenValue startValue; // private, used during tweening
-
-        [HideInInspector]
-        public TweenValue endValue; // private, used during tweening
-
-        [HideInInspector]
-        public float timeRemaining; // the time remaining to tween
-        [HideInInspector]
-        public int loopsRemaining; // the number of loops still to run
-
-        [HideInInspector]
-        public TweenValue value; // the current value of the tween
-
-        /// <summary>
-        ///  Constructs a new Tween from an existing Tween instance. Also see Clone().
-        /// <para>Useful for copying a template tween</para>
-        /// /// </summary>
-        /// <param name="tween">The tween instance to copy</param>
-        public Tween(Tween tween)
+        public void DebugCallback(Tween t)
         {
-            this.transform = tween.transform;
-            this.spriteRenderer = tween.spriteRenderer;
-            this.text = tween.text;
-            Initialize(tween.name, tween.duration, tween.tweenType, tween.rangeType,
-                tween.source.value, tween.dest.value, tween.loops, tween.easing);
+            Debug.Log("Tween Callback: " + t.value.value);
         }
 
-        /// <summary>
-        /// Constructor. See Tween class for parameter definitions. I'm lazy.
-        /// </summary>
-        public Tween(string name, float duration, Transform transform, TweenType tweenType, RangeType rangeType,
-            Vector3? source = null, Vector3 ? dest = null, int loops = 1, AnimationCurve easing = null)
-        {
-            this.transform = transform;
-            Initialize(name, duration, tweenType, rangeType, source, dest, loops, easing);
-        }
+        //////////////////////////////////////////////////////////////////////////////// 
 
-        /// <summary>
-        /// Constructor. See Tween class for parameter definitions. I'm lazy.
-        /// </summary>
-        public Tween(string name, float duration, SpriteRenderer spriteRenderer, TweenType tweenType, RangeType rangeType,
-            Vector3? source = null, Vector3 ? dest = null, int loops = 1, AnimationCurve easing = null)
+        [System.Serializable]
+        public class Tween
         {
-            this.spriteRenderer = spriteRenderer;
-            Initialize(name, duration, tweenType, rangeType, source, dest, loops, easing);
-        }
+            [Tooltip("The unique name of the tween; required for template tweens")]
+            public string name;
+            [Tooltip("The duration of the tween in seconds, must be > 0")]
+            public float duration;
+            [Tooltip("The property that is being tweened")]
+            public TweenType tweenType;
+            [Tooltip("Determines if you are supplying both source and dest, or if you're fetching either value from the object being tweened")]
+            public RangeType rangeType;
+            [Tooltip("The starting value for the tween")]
+            public TweenValue source;
+            [Tooltip("Any GameObject, since they all have a Transform")]
+            public Transform transform = null;
+            [Tooltip("Any GameObject that has a SpriteRenderer component")]
+            public SpriteRenderer spriteRenderer = null;
+            [Tooltip("Any GameObject that has a Text component")]
+            public Text text = null;
+            [Tooltip("the ending value for the tween")]
+            public TweenValue dest;
+            [Tooltip("The number of times to play the tween; use -1 for infinite looping")]
+            public int loops;
+            [Tooltip("An optional easing curve")]
+            public AnimationCurve easing;
+            [Tooltip("Optional event notifications")]
+            public TweenEvents events;
 
-        /// <summary>
-        /// Constructor. See Tween class for parameter definitions. I'm lazy.
-        /// </summary>
-        public Tween(string name, float duration, Text text, TweenType tweenType, RangeType rangeType,
-            Vector3? source = null, Vector3 ? dest = null, int loops = 1, AnimationCurve easing = null)
-        {
-            this.text = text;
-            Initialize(name, duration, tweenType, rangeType, source, dest, loops, easing);
-        }
+            [HideInInspector]
+            public TweenValue startValue; // private, used during tweening
 
-        /// <summary>
-        ///  Clones the Tween instance
-        /// </summary>
-        /// <returns>A copy of the Tween</returns>
-        public Tween Clone()
-        {
-            return new Tween(this);
-        }
+            [HideInInspector]
+            public TweenValue endValue; // private, used during tweening
 
-        private void Initialize(string name, float duration, TweenType tweenType, RangeType rangeType,
-            Vector3? source, Vector3 ? dest, int loops, AnimationCurve easing)
-        {
-            this.name = name.IsEmpty() ? "default" : name;
-            this.duration = duration;
-            this.tweenType = tweenType;
-            this.rangeType = rangeType;
-            this.source = new TweenValue(source == null ? Vector3.zero : (Vector3) source);
-            this.dest = new TweenValue(dest == null ? Vector3.zero : (Vector3) dest);
-            this.loops = loops;
-            this.easing = easing;
-        }
+            [HideInInspector]
+            public float timeRemaining; // the time remaining to tween
+            [HideInInspector]
+            public int loopsRemaining; // the number of loops still to run
 
-        /// <summary>
-        /// Called by Play() to prepare the Tween for updating.
-        /// </summary>
-        public void Activate(bool resetLoops = true)
-        {
-            if (duration <= 0)
-                throw new UnityException("Duration must be > 0");
+            [HideInInspector]
+            public TweenValue value; // the current value of the tween
 
-            TweenValue objectValue = GetObjectValue();
-            switch (rangeType)
+            /// <summary>
+            ///  Constructs a new Tween from an existing Tween instance. Also see Clone().
+            /// <para>Useful for copying a template tween</para>
+            /// /// </summary>
+            /// <param name="tween">The tween instance to copy</param>
+            public Tween(Tween tween)
             {
-                case RangeType.ObjectToDest:
-                    startValue = objectValue;
-                    endValue = dest;
-                    break;
-
-                case RangeType.ObjectToDestRelative:
-                    startValue = objectValue;
-                    endValue = startValue + dest;
-                    break;
-
-                case RangeType.SourceToDest:
-                    startValue = source;
-                    endValue = dest;
-                    break;
-
-                case RangeType.SourceToDestRelative:
-                    startValue = source + objectValue;
-                    endValue = startValue + dest;
-                    break;
-
-                case RangeType.SourceToObject:
-                    startValue = source;
-                    endValue = objectValue;
-                    break;
-
-                case RangeType.SourceToObjectRelative:
-                    startValue = source + objectValue;
-                    endValue = objectValue;
-                    break;
+                this.transform = tween.transform;
+                this.spriteRenderer = tween.spriteRenderer;
+                this.text = tween.text;
+                Initialize(tween.name, tween.duration, tween.tweenType, tween.rangeType,
+                    tween.source.value, tween.dest.value, tween.loops, tween.easing);
             }
 
-            value = startValue;
-            timeRemaining = duration;
-            if(resetLoops)
-                loopsRemaining = loops;
-        }
-
-        private TweenValue GetObjectValue()
-        {
-            switch (tweenType)
+            /// <summary>
+            /// Constructor. See Tween class for parameter definitions. I'm lazy.
+            /// </summary>
+            public Tween(string name, float duration, Transform transform, TweenType tweenType, RangeType rangeType,
+                Vector4? source = null, Vector4 ? dest = null, int loops = 1, AnimationCurve easing = null)
             {
-                case TweenType.SpriteRendererAlpha:
-                    spriteRenderer.ThrowIfNull("SpriteRenderer not assigned");
-                    return new TweenValue(spriteRenderer.color.a);
-
-                case TweenType.SpriteRendererColor:
-                    spriteRenderer.ThrowIfNull("SpriteRenderer not assigned");
-                    return new TweenValue((Vector4) spriteRenderer.color);
-
-                case TweenType.TextAlpha:
-                    text.ThrowIfNull("Text not assigned");
-                    return new TweenValue(text.color.a);
-
-                case TweenType.TextColor:
-                    text.ThrowIfNull("Text not assigned");
-                    return new TweenValue((Vector4) text.color);
-
-                case TweenType.LocalPosition2D:
-                case TweenType.LocalPosition3D:
-                    transform.ThrowIfNull("Transform not assigned");
-                    return new TweenValue((Vector4) transform.localPosition);
-
-                case TweenType.Position2D:
-                case TweenType.Position3D:
-                    transform.ThrowIfNull("Transform not assigned");
-                    return new TweenValue((Vector4) transform.position);
-
-                case TweenType.LocalRotation2D:
-                    transform.ThrowIfNull("Transform not assigned");
-                    return new TweenValue(transform.localEulerAngles.z);
-
-                case TweenType.LocalRotation3D:
-                    transform.ThrowIfNull("Transform not assigned");
-                    return new TweenValue((Vector4) transform.localEulerAngles);
-
-                case TweenType.Rotation2D:
-                    transform.ThrowIfNull("Transform not assigned");
-                    return new TweenValue(transform.eulerAngles.z);
-
-                case TweenType.Rotation3D:
-                    transform.ThrowIfNull("Transform not assigned");
-                    return new TweenValue((Vector4) transform.eulerAngles);
-
-                case TweenType.Scale2D:
-                case TweenType.Scale3D:
-                    transform.ThrowIfNull("Transform not assigned");
-                    return new TweenValue((Vector4) transform.localScale);
-
-                default:
-                    throw new UnityException("TweenType" + tweenType + " does not have an object value");
+                this.transform = transform;
+                Initialize(name, duration, tweenType, rangeType, source, dest, loops, easing);
             }
-        }
-    }
 
-    [System.Serializable]
-    public class TweenEvents
-    {
-        [Tooltip("Invoked when the tween is activated, but before the object gets its first update")]
-        public TweenEvent Start;
-        [Tooltip("Invoked after the tween is updated, use this for Float tweens")]
-        public TweenEvent Change;
-        [Tooltip("Invoked when an updating tween is has finished but before it is removed; you can set timeRemaining to duration to prevent the tween's removal")]
-        public TweenEvent End;
-    }
-
-    /// <summary>
-    /// A wrapper for a tweenable value. 
-    /// <para>The underlying type is a Vector4. Use the GetXXX() functions to retrieve the native value 
-    /// relevant to the TweenType.</para>
-    /// </summary>
-    [System.Serializable]
-    public struct TweenValue
-    {
-        public Vector4 value;
-        public TweenValue(float x = 0f, float y = 0f, float z = 0f, float w = 0f)
-        {
-            value = new Vector4(x, y, z, w);
-        }
-
-        public TweenValue(Vector4 vec)
-        {
-            value = vec;
-        }
-
-        /// <returns>2D rotation angle, alpha or raw float</returns>
-        public float GetFloat()
-        {
-            return value.x;
-        }
-
-        /// <returns>2D position and scale</returns>
-        public Vector2 GetVector2()
-        {
-            return (Vector2) value;
-        }
-
-        /// <returns>All 3D tween types</returns>
-        public Vector3 GetVector3()
-        {
-            return (Vector3) value;
-        }
-
-        /// <returns>Colors</returns>
-        public Color GetColor()
-        {
-            return (Color) value;
-        }
-
-        public void SetFloat(float f)
-        {
-            value = new Vector4(f, 0, 0, 0);
-        }
-
-        public void SetVector2(Vector2 v)
-        {
-            value = (Vector4) v;
-        }
-
-        public void SetVector3(Vector3 v)
-        {
-            value = (Vector4) v;
-        }
-
-        public void SetVector4(Vector4 v)
-        {
-            value = v;
-        }
-
-        public static TweenValue operator + (TweenValue tv1, TweenValue tv2)
-        {
-            return new TweenValue(tv1.value + tv2.value);
-        }
-    }
-
-    [System.Serializable]
-    public class TweenEvent : UnityEvent<Tween> { }
-
-    [System.Serializable]
-    public enum TweenType
-    {
-        Position3D,
-        Position2D,
-        LocalPosition2D,
-        LocalPosition3D,
-        Rotation2D,
-        Rotation3D,
-        LocalRotation2D,
-        LocalRotation3D,
-        Scale2D,
-        Scale3D,
-        SpriteRendererColor,
-        SpriteRendererAlpha,
-        TextColor,
-        TextAlpha,
-        Float
-    }
-
-    [System.Serializable]
-    public enum RangeType
-    {
-        SourceToDest,
-        ObjectToDest,
-        SourceToObject,
-        SourceToDestRelative,
-        ObjectToDestRelative,
-        SourceToObjectRelative
-    }
-
-#if UNITY_EDITOR
-    //////////////////////////////////////////////////////////////////////////////// 
-    [CustomPropertyDrawer(typeof (Tween))]
-    public class TweenPropertyDrawer : PropertyDrawer
-    {
-        public override void OnGUI(Rect pos, SerializedProperty prop, GUIContent label)
-        {
-
-            EditorGUI.PropertyField(pos, prop, label, true);
-            if (prop.isExpanded)
+            /// <summary>
+            /// Constructor. See Tween class for parameter definitions. I'm lazy.
+            /// </summary>
+            public Tween(string name, float duration, SpriteRenderer spriteRenderer, TweenType tweenType, RangeType rangeType,
+                Vector4? source = null, Vector4 ? dest = null, int loops = 1, AnimationCurve easing = null)
             {
-                float width = 80f;
-                GUI.enabled = Application.isPlaying;
-                if (GUI.Button(new Rect(pos.xMin + (pos.width - width) / 2, pos.yMax - 20f, width, 20f),
-                        new GUIContent("Live Preview", "When application is running, press this to preview the tween")))
+                this.spriteRenderer = spriteRenderer;
+                Initialize(name, duration, tweenType, rangeType, source, dest, loops, easing);
+            }
+
+            /// <summary>
+            /// Constructor. See Tween class for parameter definitions. I'm lazy.
+            /// </summary>
+            public Tween(string name, float duration, Text text, TweenType tweenType, RangeType rangeType,
+                Vector4? source = null, Vector4 ? dest = null, int loops = 1, AnimationCurve easing = null)
+            {
+                this.text = text;
+                Initialize(name, duration, tweenType, rangeType, source, dest, loops, easing);
+            }
+
+            /// <summary>
+            ///  Clones the Tween instance
+            /// </summary>
+            /// <returns>A copy of the Tween</returns>
+            public Tween Clone()
+            {
+                return new Tween(this);
+            }
+
+            private void Initialize(string name, float duration, TweenType tweenType, RangeType rangeType,
+                Vector4? source, Vector4 ? dest, int loops, AnimationCurve easing)
+            {
+                this.name = name.IsEmpty() ? "default" : name;
+                this.duration = duration;
+                this.tweenType = tweenType;
+                this.rangeType = rangeType;
+                this.source = new TweenValue(source == null ? Vector4.zero : (Vector4) source);
+                this.dest = new TweenValue(dest == null ? Vector4.zero : (Vector4) dest);
+                this.loops = loops;
+                this.easing = easing;
+            }
+
+            /// <summary>
+            /// Called by Play() to prepare the Tween for updating.
+            /// </summary>
+            public void Activate(bool resetLoops = true)
+            {
+                if (duration <= 0)
+                    throw new UnityException("Duration must be > 0");
+
+                switch (rangeType)
                 {
-                    TweenManager tm = (TweenManager) prop.serializedObject.targetObject;
-                    string name = prop.serializedObject.FindProperty(prop.propertyPath + ".name").stringValue;
-                    tm.StopAll();
-                    tm.Play(name);
+                    case RangeType.ObjectToDest:
+                        startValue = GetObjectValue();
+                        endValue = dest;
+                        break;
+
+                    case RangeType.ObjectToDestRelative:
+                        startValue = GetObjectValue();
+                        endValue = startValue + dest;
+                        break;
+
+                    case RangeType.SourceToDest:
+                        startValue = source;
+                        endValue = dest;
+                        break;
+
+                    case RangeType.SourceToDestRelative:
+                        startValue = source + GetObjectValue();
+                        endValue = startValue + dest;
+                        break;
+
+                    case RangeType.SourceToObject:
+                        startValue = source;
+                        endValue = GetObjectValue();
+                        break;
+
+                    case RangeType.SourceToObjectRelative:
+                        startValue = source + GetObjectValue();
+                        endValue = GetObjectValue();
+                        break;
+                }
+
+                value = startValue;
+                timeRemaining = duration;
+                if (resetLoops)
+                    loopsRemaining = loops;
+            }
+
+            private TweenValue GetObjectValue()
+            {
+                switch (tweenType)
+                {
+                    case TweenType.SpriteRendererAlpha:
+                        spriteRenderer.ThrowIfNull("SpriteRenderer not assigned");
+                        return TweenValue.Float(spriteRenderer.color.a);
+
+                    case TweenType.SpriteRendererColor:
+                        spriteRenderer.ThrowIfNull("SpriteRenderer not assigned");
+                        return TweenValue.Color(spriteRenderer.color);
+
+                    case TweenType.TextAlpha:
+                        text.ThrowIfNull("Text not assigned");
+                        return TweenValue.Float(text.color.a);
+
+                    case TweenType.TextColor:
+                        text.ThrowIfNull("Text not assigned");
+                        return TweenValue.Color(text.color);
+
+                    case TweenType.LocalPosition2D:
+                        transform.ThrowIfNull("Transform not assigned");
+                        return TweenValue.Vector2(transform.localPosition);
+
+                    case TweenType.LocalPosition3D:
+                        transform.ThrowIfNull("Transform not assigned");
+                        return TweenValue.Vector3(transform.localPosition);
+
+                    case TweenType.Position2D:
+                        transform.ThrowIfNull("Transform not assigned");
+                        return TweenValue.Vector2(transform.position);
+
+                    case TweenType.Position3D:
+                        transform.ThrowIfNull("Transform not assigned");
+                        return TweenValue.Vector3(transform.position);
+
+                    case TweenType.LocalRotation2D:
+                        transform.ThrowIfNull("Transform not assigned");
+                        return TweenValue.Float(transform.localEulerAngles.z);
+
+                    case TweenType.LocalRotation3D:
+                        transform.ThrowIfNull("Transform not assigned");
+                        return TweenValue.Vector3(transform.localEulerAngles);
+
+                    case TweenType.Rotation2D:
+                        transform.ThrowIfNull("Transform not assigned");
+                        return TweenValue.Float(transform.eulerAngles.z);
+
+                    case TweenType.Rotation3D:
+                        transform.ThrowIfNull("Transform not assigned");
+                        return TweenValue.Vector3(transform.eulerAngles);
+
+                    case TweenType.Scale2D:
+                    case TweenType.Scale3D:
+                        transform.ThrowIfNull("Transform not assigned");
+                        return TweenValue.Vector3(transform.localScale);
+
+                    default:
+                        throw new UnityException("TweenType" + tweenType + " does not have an object value");
                 }
             }
-            GUI.enabled = true;
         }
 
-        public override float GetPropertyHeight(SerializedProperty prop, GUIContent label)
+        //////////////////////////////////////////////////////////////////////////////// 
+
+        [System.Serializable]
+        public class TweenEvents
         {
-            if (prop.isExpanded)
-                return EditorGUI.GetPropertyHeight(prop) + 20f;
-            return EditorGUI.GetPropertyHeight(prop);
+            [Tooltip("Invoked when the tween is activated, but before the object gets its first update")]
+            public TweenEvent Start;
+            [Tooltip("Invoked after the tween is updated, use this for Float tweens")]
+            public TweenEvent Change;
+            [Tooltip("Invoked when an updating tween is has finished but before it is removed; you can set timeRemaining to duration to prevent the tween's removal")]
+            public TweenEvent End;
         }
-    }
 
-    //////////////////////////////////////////////////////////////////////////////// 
-    [CustomPropertyDrawer(typeof (TweenValue))]
-    public class TweenValuePropertyDrawer : PropertyDrawer
-    {
-        private SerializedProperty rangeTypeProp;
-        private SerializedProperty tweenTypeProp;
-        private float lastX;
+        //////////////////////////////////////////////////////////////////////////////// 
 
-        public override void OnGUI(Rect pos, SerializedProperty prop, GUIContent label)
+        /// <summary>
+        /// A wrapper for a tweenable value. 
+        /// <para>The underlying type is a Vector4. Use the GetXXX() functions to retrieve the native value 
+        /// relevant to the TweenType.</para>
+        /// </summary>
+        [System.Serializable]
+        public struct TweenValue
         {
-            if (IsHidden(prop)) return;
+            public Vector4 value;
 
-            TweenType tweenType = (TweenType) tweenTypeProp.enumValueIndex;
-            EditorGUI.BeginProperty(pos, label, prop);
-            int indentLevel = EditorGUI.indentLevel;
-            EditorGUI.indentLevel = 0;
-            SerializedProperty value = prop.FindPropertyRelative("value");
-            lastX = 30;
-
-            AddLabel(value, pos, prop.displayName, 90f);
-            switch (tweenType)
+            public TweenValue(float x = 0f, float y = 0f, float z = 0f, float w = 0f)
             {
-                case TweenType.Float:
-                AddField(value, pos, "x", 100f, 35f, "value");
-                break;
-
-                case TweenType.SpriteRendererColor:
-                case TweenType.TextColor:
-                AddField(value, pos, "x", 46f, 10f, "r");
-                AddField(value, pos, "y", 46f, 10f, "g");
-                AddField(value, pos, "z", 46f, 10f, "b");
-                AddField(value, pos, "w", 46f, 10f, "a");
-                break;
-
-                case TweenType.SpriteRendererAlpha:
-                case TweenType.TextAlpha:
-                AddField(value, pos, "x", 100f, 35f, "alpha");
-                break;
-
-                case TweenType.LocalPosition3D:
-                case TweenType.Position3D:
-                case TweenType.LocalRotation3D:
-                case TweenType.Rotation3D:
-                case TweenType.Scale3D:
-                AddField(value, pos, "x", 65f, 10f);
-                AddField(value, pos, "y", 65f, 10f);
-                AddField(value, pos, "z", 65f, 10f);
-                break;
-
-                case TweenType.LocalPosition2D:
-                case TweenType.Position2D:
-                case TweenType.Scale2D:
-                AddField(value, pos, "x", 90f, 10f);
-                AddField(value, pos, "y", 90f, 10f);
-                break;
-
-                case TweenType.LocalRotation2D:
-                case TweenType.Rotation2D:
-                AddField(value, pos, "x", 100f, 35f, "angle");
-                break;
-
-                default:
-                AddField(value, pos, "x", 40f);
-                AddField(value, pos, "y", 40f);
-                AddField(value, pos, "z", 40f);
-                AddField(value, pos, "w", 40f);
-                break;
+                value = new Vector4(x, y, z, w);
             }
 
-            EditorGUI.indentLevel = indentLevel;
-            EditorGUI.EndProperty();
-        }
-        private void AddLabel(SerializedProperty prop, Rect pos, string propName, float width)
-        {
-            Rect fieldRect = new Rect(pos.x + lastX, pos.y, width, pos.height);
-            EditorGUI.LabelField(fieldRect, propName);
-            lastX += width;
+            public TweenValue(Vector4 vec)
+            {
+                value = vec;
+            }
+
+            /// <returns>2D rotation angle, alpha or raw float</returns>
+            public float Float()
+            {
+                return value.x;
+            }
+
+            /// <returns>2D position and scale</returns>
+            public Vector2 Vector2()
+            {
+                return (Vector2) value;
+            }
+
+            /// <returns>All 3D tween types</returns>
+            public Vector3 Vector3()
+            {
+                return (Vector3) value;
+            }
+
+            /// <returns>The native Vector4</returns>
+            public Vector3 Vector4()
+            {
+                return value;
+            }
+
+            /// <returns>Colors</returns>
+            public Color Color()
+            {
+                return (Color) value;
+            }
+
+            public static TweenValue Float(float f)
+            {
+                return new TweenValue(f, 0, 0, 0);
+            }
+
+            public static TweenValue Vector2(Vector2 v)
+            {
+                return new TweenValue((Vector4) v);
+            }
+
+            public static TweenValue Vector3(Vector3 v)
+            {
+                return new TweenValue((Vector4) v);
+            }
+
+            public static TweenValue Vector4(Vector4 v)
+            {
+                return new TweenValue(v);
+            }
+
+            public static TweenValue Color(Color c)
+            {
+                return new TweenValue((Vector4) c);
+            }
+
+            public static TweenValue operator + (TweenValue tv1, TweenValue tv2)
+            {
+                return new TweenValue(tv1.value + tv2.value);
+            }
         }
 
-        private void AddField(SerializedProperty prop, Rect pos, string propName, float width,
-            float labelWidth = 10f, string altLabel = null)
+        //////////////////////////////////////////////////////////////////////////////// 
+
+        [System.Serializable]
+        public class TweenEvent : UnityEvent<Tween> { }
+
+        [System.Serializable]
+        public enum TweenType
         {
-            string label = (altLabel == null ? propName : altLabel);
-            SerializedProperty fieldProp = prop.FindPropertyRelative(propName);
-            Rect fieldRect = new Rect(pos.x + lastX, pos.y, width, pos.height);
-            EditorGUI.LabelField(fieldRect, label);
-            fieldRect.x += labelWidth;
-            fieldRect.width = width - labelWidth;
-            EditorGUI.PropertyField(fieldRect, fieldProp, GUIContent.none);
-            lastX += width + 5;
+            Position3D,
+            Position2D,
+            LocalPosition2D,
+            LocalPosition3D,
+            Rotation2D,
+            Rotation3D,
+            LocalRotation2D,
+            LocalRotation3D,
+            Scale2D,
+            Scale3D,
+            SpriteRendererColor,
+            SpriteRendererAlpha,
+            TextColor,
+            TextAlpha,
+            Float,
+            Vector2,
+            Vector3,
+            Vector4,
+            Color
         }
 
-        private bool IsHidden(SerializedProperty prop)
+        [System.Serializable]
+        public enum RangeType
         {
-            if (rangeTypeProp == null)
+            SourceToDest,
+            ObjectToDest,
+            SourceToObject,
+            SourceToDestRelative,
+            ObjectToDestRelative,
+            SourceToObjectRelative
+        }
+
+#if UNITY_EDITOR
+        //////////////////////////////////////////////////////////////////////////////// 
+        [CustomPropertyDrawer(typeof (Tween))]
+        public class TweenPropertyDrawer : PropertyDrawer
+        {
+            public override void OnGUI(Rect pos, SerializedProperty prop, GUIContent label)
+            {
+
+                EditorGUI.PropertyField(pos, prop, label, true);
+                if (prop.isExpanded)
+                {
+                    float width = 80f;
+                    GUI.enabled = Application.isPlaying;
+                    if (GUI.Button(new Rect(pos.xMin + (pos.width - width) / 2, pos.yMax - 20f, width, 20f),
+                            new GUIContent("Live Preview", "When application is running, press this to preview the tween")))
+                    {
+                        TweenManager tm = (TweenManager) prop.serializedObject.targetObject;
+                        string name = prop.serializedObject.FindProperty(prop.propertyPath + ".name").stringValue;
+                        tm.StopAll();
+                        tm.Play(name);
+                    }
+                }
+                GUI.enabled = true;
+            }
+
+            public override float GetPropertyHeight(SerializedProperty prop, GUIContent label)
+            {
+                if (prop.isExpanded)
+                    return EditorGUI.GetPropertyHeight(prop) + 20f;
+                return EditorGUI.GetPropertyHeight(prop);
+            }
+        }
+
+        //////////////////////////////////////////////////////////////////////////////// 
+        [CustomPropertyDrawer(typeof (TweenValue))]
+        public class TweenValuePropertyDrawer : PropertyDrawer
+        {
+            private float lastX;
+
+            public override void OnGUI(Rect pos, SerializedProperty prop, GUIContent label)
+            {
+                if (IsHidden(prop)) return;
+
+                string tweenPath = prop.propertyPath.Substring(0, prop.propertyPath.LastIndexOf("."));
+                string tweenTypePath = tweenPath + ".tweenType";
+                SerializedProperty tweenTypeProp = prop.serializedObject.FindProperty(tweenTypePath);
+
+                TweenType tweenType = (TweenType) tweenTypeProp.enumValueIndex;
+                EditorGUI.BeginProperty(pos, label, prop);
+                int indentLevel = EditorGUI.indentLevel;
+                EditorGUI.indentLevel = 0;
+                SerializedProperty value = prop.FindPropertyRelative("value");
+                lastX = 30;
+
+                AddLabel(value, pos, prop.displayName, 90f);
+                switch (tweenType)
+                {
+                    case TweenType.LocalRotation2D:
+                    case TweenType.Rotation2D:
+                    AddField(value, pos, "x", 100f, 35f, "angle");
+                    break;
+
+                    case TweenType.Float:
+                    AddField(value, pos, "x", 100f, 35f, "value");
+                    break;
+
+                    case TweenType.SpriteRendererAlpha:
+                    case TweenType.TextAlpha:
+                    AddField(value, pos, "x", 100f, 35f, "alpha");
+                    break;
+
+                    case TweenType.LocalPosition2D:
+                    case TweenType.Position2D:
+                    case TweenType.Scale2D:
+                    case TweenType.Vector2:
+                    AddField(value, pos, "x", 90f, 10f);
+                    AddField(value, pos, "y", 90f, 10f);
+                    break;
+
+                    case TweenType.LocalPosition3D:
+                    case TweenType.Position3D:
+                    case TweenType.LocalRotation3D:
+                    case TweenType.Rotation3D:
+                    case TweenType.Scale3D:
+                    case TweenType.Vector3:
+                    AddField(value, pos, "x", 65f, 10f);
+                    AddField(value, pos, "y", 65f, 10f);
+                    AddField(value, pos, "z", 65f, 10f);
+                    break;
+
+                    case TweenType.SpriteRendererColor:
+                    case TweenType.TextColor:
+                    case TweenType.Color:
+                    AddField(value, pos, "x", 46f, 10f, "r");
+                    AddField(value, pos, "y", 46f, 10f, "g");
+                    AddField(value, pos, "z", 46f, 10f, "b");
+                    AddField(value, pos, "w", 46f, 10f, "a");
+                    break;
+
+                    default: // Vector4
+                    AddField(value, pos, "x", 40f);
+                    AddField(value, pos, "y", 40f);
+                    AddField(value, pos, "z", 40f);
+                    AddField(value, pos, "w", 40f);
+                    break;
+                }
+
+                EditorGUI.indentLevel = indentLevel;
+                EditorGUI.EndProperty();
+            }
+            private void AddLabel(SerializedProperty prop, Rect pos, string propName, float width)
+            {
+                Rect fieldRect = new Rect(pos.x + lastX, pos.y, width, pos.height);
+                EditorGUI.LabelField(fieldRect, propName);
+                lastX += width;
+            }
+
+            private void AddField(SerializedProperty prop, Rect pos, string propName, float width,
+                float labelWidth = 10f, string altLabel = null)
+            {
+                string label = (altLabel == null ? propName : altLabel);
+                SerializedProperty fieldProp = prop.FindPropertyRelative(propName);
+                Rect fieldRect = new Rect(pos.x + lastX, pos.y, width, pos.height);
+                EditorGUI.LabelField(fieldRect, label);
+                fieldRect.x += labelWidth;
+                fieldRect.width = width - labelWidth;
+                EditorGUI.PropertyField(fieldRect, fieldProp, GUIContent.none);
+                lastX += width + 5;
+            }
+
+            private bool IsHidden(SerializedProperty prop)
+            {
+                string tweenPath = prop.propertyPath.Substring(0, prop.propertyPath.LastIndexOf("."));
+                string rangeTypePath = tweenPath + ".rangeType";
+                SerializedProperty rangeTypeProp = prop.serializedObject.FindProperty(rangeTypePath);
+
+                RangeType rangeType = (RangeType) rangeTypeProp.enumValueIndex;
+                return ((rangeType == RangeType.SourceToObject || rangeType == RangeType.SourceToObjectRelative) &&
+                        prop.name == "dest") ||
+                    ((rangeType == RangeType.ObjectToDest || rangeType == RangeType.ObjectToDestRelative) &&
+                        prop.name == "source");
+            }
+
+            public override float GetPropertyHeight(SerializedProperty prop, GUIContent label)
+            {
+                if (IsHidden(prop)) return -EditorGUIUtility.standardVerticalSpacing;
+                return EditorGUI.GetPropertyHeight(prop, label, false);
+            }
+        }
+
+        //////////////////////////////////////////////////////////////////////////////// 
+        [CustomPropertyDrawer(typeof (Transform))]
+        [CustomPropertyDrawer(typeof (SpriteRenderer))]
+        [CustomPropertyDrawer(typeof (Text))]
+        public class ObjectPropertyDrawer : PropertyDrawer
+        {
+            public override void OnGUI(Rect pos, SerializedProperty prop, GUIContent label)
+            {
+                if (IsHidden(prop)) return;
+                EditorGUI.PropertyField(pos, prop, new GUIContent("Object"));
+            }
+
+            private bool IsHidden(SerializedProperty prop)
             {
                 string tweenPath = prop.propertyPath.Substring(0, prop.propertyPath.LastIndexOf("."));
                 string rangeTypePath = tweenPath + ".rangeType";
                 string tweenTypePath = tweenPath + ".tweenType";
-                rangeTypeProp = prop.serializedObject.FindProperty(rangeTypePath);
-                tweenTypeProp = prop.serializedObject.FindProperty(tweenTypePath);
+                SerializedProperty rangeTypeProp = prop.serializedObject.FindProperty(rangeTypePath);
+                SerializedProperty tweenTypeProp = prop.serializedObject.FindProperty(tweenTypePath);
+
+                TweenType tweenType = (TweenType) tweenTypeProp.enumValueIndex;
+                RangeType rangeType = (RangeType) rangeTypeProp.enumValueIndex;
+                switch (tweenType)
+                {
+                    case TweenType.Float:
+                    case TweenType.Vector2:
+                    case TweenType.Vector3:
+                    case TweenType.Vector4:
+                    case TweenType.Color:
+                    rangeTypeProp.enumValueIndex = (int) RangeType.SourceToDest; // these types have no target 
+                    return true; // float always hides objects
+
+                    case TweenType.SpriteRendererColor:
+                    case TweenType.SpriteRendererAlpha:
+                    return prop.name != "spriteRenderer";
+
+                    case TweenType.TextColor:
+                    case TweenType.TextAlpha:
+                    return prop.name != "text";
+                }
+
+                // The remainder are all transforms
+                return prop.name != "transform";
             }
 
-            RangeType rangeType = (RangeType) rangeTypeProp.enumValueIndex;
-            return ((rangeType == RangeType.SourceToObject || rangeType == RangeType.SourceToObjectRelative) &&
-                    prop.name == "dest") ||
-                ((rangeType == RangeType.ObjectToDest || rangeType == RangeType.ObjectToDestRelative) &&
-                    prop.name == "source");
-        }
-
-        public override float GetPropertyHeight(SerializedProperty prop, GUIContent label)
-        {
-            if (IsHidden(prop)) return -EditorGUIUtility.standardVerticalSpacing;
-            return EditorGUI.GetPropertyHeight(prop, label, false);
-        }
-    }
-
-    //////////////////////////////////////////////////////////////////////////////// 
-    [CustomPropertyDrawer(typeof (Transform))]
-    [CustomPropertyDrawer(typeof (SpriteRenderer))]
-    [CustomPropertyDrawer(typeof (Text))]
-    public class ObjectPropertyDrawer : PropertyDrawer
-    {
-        private SerializedProperty tweenTypeProp;
-        private SerializedProperty rangeTypeProp;
-
-        public override void OnGUI(Rect pos, SerializedProperty prop, GUIContent label)
-        {
-            if (IsHidden(prop)) return;
-            EditorGUI.PropertyField(pos, prop, new GUIContent("Object"));
-        }
-
-        private bool IsHidden(SerializedProperty prop)
-        {
-            if (rangeTypeProp == null)
+            public override float GetPropertyHeight(SerializedProperty prop, GUIContent label)
             {
-                string tweenPath = prop.propertyPath.Substring(0, prop.propertyPath.LastIndexOf("."));
-                string rangeTypePath = tweenPath + ".rangeType";
-                string tweenTypePath = tweenPath + ".tweenType";
-                rangeTypeProp = prop.serializedObject.FindProperty(rangeTypePath);
-                tweenTypeProp = prop.serializedObject.FindProperty(tweenTypePath);
+                if (IsHidden(prop)) return -EditorGUIUtility.standardVerticalSpacing;
+                return EditorGUI.GetPropertyHeight(prop, label, false);
             }
 
-            TweenType tweenType = (TweenType) tweenTypeProp.enumValueIndex;
-            RangeType rangeType = (RangeType) rangeTypeProp.enumValueIndex;
-            switch (tweenType)
-            {
-                case TweenType.Float:
-                rangeTypeProp.enumValueIndex = (int) RangeType.SourceToDest; // force this on float 
-                return true; // float always hides objects
-
-                case TweenType.SpriteRendererColor:
-                case TweenType.SpriteRendererAlpha:
-                return prop.name != "spriteRenderer";
-
-                case TweenType.TextColor:
-                case TweenType.TextAlpha:
-                return prop.name != "text";
-            }
-
-            // The remainder are all transforms
-            return prop.name != "transform";
         }
-
-        public override float GetPropertyHeight(SerializedProperty prop, GUIContent label)
-        {
-            if (IsHidden(prop)) return -EditorGUIUtility.standardVerticalSpacing;
-            return EditorGUI.GetPropertyHeight(prop, label, false);
-        }
-
-    }
 #endif
+    }
 }

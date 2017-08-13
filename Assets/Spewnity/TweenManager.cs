@@ -87,6 +87,40 @@ namespace Spewnity
         }
 
         /// <summary>
+        ///  Plays a chain of template tweens, one after another.
+        /// <para>Makes a clone of each tween first</para>
+        /// </summary>
+        /// <param name="tweenNames">An array of template tween names</param>
+        public void PlayChain(params string[] tweenNames)
+        {
+            Tween[] tweensToChain = new Tween[tweenNames.Length];
+            for (int i = 0; i < tweenNames.Length; i++)
+                tweensToChain[i] = GetTemplate(tweenNames[i]).Clone();
+            PlayChain(tweensToChain);
+        }
+
+        /// <summary>
+        /// Plays a chain of tween instances, one after another.
+        /// <para>Will modify each tween to invoke Play on the next tween when end one ends</para>
+        /// </summary>
+        /// <param name="tweensToChain">An array of tweens</param>
+        public void PlayChain(params Tween[] tweensToChain)
+        {
+            if (tweensToChain.Length == 0)
+                return;
+
+            for (int i = 0; i < tweensToChain.Length - 1; i++)
+            {
+                Tween thisTween = tweensToChain[i];
+                Tween nextTween = tweensToChain[i + 1];
+                UnityAction<Tween> action = new UnityAction<Tween>(delegate { Play(nextTween); });
+                action += delegate { thisTween.events.End.RemoveListener(action); };
+                thisTween.events.End.AddListener(action);
+            }
+            Play(tweensToChain[0]);
+        }
+
+        /// <summary>
         /// Returns the template Tween with supplied name.
         /// <para>If you modify this directly, you are modifying the template.
         // You probably want to make a copy with Tween.Clone(), modify the copy, and pass that to Play().</para>
@@ -145,7 +179,7 @@ namespace Spewnity
             {
                 tween.Activate();
                 tweens.Add(tween);
-                tween.events.Start.Invoke(tween);
+                if (tween.events != null) tween.events.Start.Invoke(tween);
             }
             tweensToAdd.Clear();
 
@@ -237,7 +271,7 @@ namespace Spewnity
 
                 }
 
-                tween.events.Change.Invoke(tween);
+                if (tween.events != null) tween.events.Change.Invoke(tween);
                 if (tween.timeRemaining <= 0f)
                 {
                     // Tween has finished loop
@@ -245,7 +279,7 @@ namespace Spewnity
                         tween.Activate(false);
 
                     // Tween has finished all iterations
-                    else tween.events.End.Invoke(tween);
+                    else if (tween.events != null) tween.events.End.Invoke(tween);
                 }
             }
 
@@ -292,7 +326,7 @@ namespace Spewnity
             [Tooltip("An optional easing curve")]
             public AnimationCurve easing;
             [Tooltip("Optional event notifications")]
-            public TweenEvents events;
+            public TweenEvents events = new TweenEvents();
 
             [HideInInspector]
             public TweenValue startValue; // private, used during tweening
@@ -319,37 +353,37 @@ namespace Spewnity
                 this.spriteRenderer = tween.spriteRenderer;
                 this.text = tween.text;
                 Initialize(tween.name, tween.duration, tween.tweenType, tween.rangeType,
-                    tween.source.value, tween.dest.value, tween.loops, tween.easing);
+                    tween.source.value, tween.dest.value, tween.loops, tween.easing, tween.events = null);
             }
 
             /// <summary>
             /// Constructor. See Tween class for parameter definitions. I'm lazy.
             /// </summary>
             public Tween(string name, float duration, Transform transform, TweenType tweenType, RangeType rangeType,
-                Vector4? source = null, Vector4 ? dest = null, int loops = 1, AnimationCurve easing = null)
+                Vector4? source = null, Vector4 ? dest = null, int loops = 1, AnimationCurve easing = null, TweenEvents events = null)
             {
                 this.transform = transform;
-                Initialize(name, duration, tweenType, rangeType, source, dest, loops, easing);
+                Initialize(name, duration, tweenType, rangeType, source, dest, loops, easing, events);
             }
 
             /// <summary>
             /// Constructor. See Tween class for parameter definitions. I'm lazy.
             /// </summary>
             public Tween(string name, float duration, SpriteRenderer spriteRenderer, TweenType tweenType, RangeType rangeType,
-                Vector4? source = null, Vector4 ? dest = null, int loops = 1, AnimationCurve easing = null)
+                Vector4? source = null, Vector4 ? dest = null, int loops = 1, AnimationCurve easing = null, TweenEvents events = null)
             {
                 this.spriteRenderer = spriteRenderer;
-                Initialize(name, duration, tweenType, rangeType, source, dest, loops, easing);
+                Initialize(name, duration, tweenType, rangeType, source, dest, loops, easing, events);
             }
 
             /// <summary>
             /// Constructor. See Tween class for parameter definitions. I'm lazy.
             /// </summary>
             public Tween(string name, float duration, Text text, TweenType tweenType, RangeType rangeType,
-                Vector4? source = null, Vector4 ? dest = null, int loops = 1, AnimationCurve easing = null)
+                Vector4? source = null, Vector4 ? dest = null, int loops = 1, AnimationCurve easing = null, TweenEvents events = null)
             {
                 this.text = text;
-                Initialize(name, duration, tweenType, rangeType, source, dest, loops, easing);
+                Initialize(name, duration, tweenType, rangeType, source, dest, loops, easing, events);
             }
 
             /// <summary>
@@ -362,7 +396,7 @@ namespace Spewnity
             }
 
             private void Initialize(string name, float duration, TweenType tweenType, RangeType rangeType,
-                Vector4? source, Vector4 ? dest, int loops, AnimationCurve easing)
+                Vector4? source, Vector4 ? dest, int loops, AnimationCurve easing, TweenEvents events = null)
             {
                 this.name = name.IsEmpty() ? "default" : name;
                 this.duration = duration;
@@ -372,6 +406,7 @@ namespace Spewnity
                 this.dest = new TweenValue(dest == null ? Vector4.zero : (Vector4) dest);
                 this.loops = loops;
                 this.easing = easing;
+                this.events = events == null ? new TweenEvents() : events;
             }
 
             /// <summary>
@@ -490,11 +525,11 @@ namespace Spewnity
         public class TweenEvents
         {
             [Tooltip("Invoked when the tween is activated, but before the object gets its first update")]
-            public TweenEvent Start;
+            public TweenEvent Start = new TweenEvent();
             [Tooltip("Invoked after the tween is updated, use this for Float tweens")]
-            public TweenEvent Change;
+            public TweenEvent Change = new TweenEvent();
             [Tooltip("Invoked when an updating tween is has finished but before it is removed; you can set timeRemaining to duration to prevent the tween's removal")]
-            public TweenEvent End;
+            public TweenEvent End = new TweenEvent();
         }
 
         //////////////////////////////////////////////////////////////////////////////// 

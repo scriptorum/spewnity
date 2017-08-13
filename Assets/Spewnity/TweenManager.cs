@@ -10,13 +10,14 @@ using UnityEditorInternal;
 #endif
 
 // TODO Cache TweenTemplate names in dictionary?
-// TODO Add Reverse, PingPong, and Cycles/Looping, although some of this can be approximated with easing
+// TODO Add Reverse, PingPong, although some of this can be approximated with easing
 // TODO A Vec4 lerp is only needed for color, other TweenTypes will be more performant if you lerp just the parts you need.
 // TODO Add ColorWithoutAlpha?
 // TODO Editor and PropertyDrawer work is such a drag - look into attributes and helper functions
 // TODO Should Lerp be Unclamped for things like Colors?
 // TODO Some settings cause the initial value to be skipped inappropriately - e.g., Float 0-60 at 60FPS starts at 1 not 0.
 //      This is perhaps ok for ObjectToSource settings, but it's bad for pretty much everything else, no?
+// TODO Create a more formal structure to do chaining and layering of tweens.
 namespace Spewnity
 {
     /// <summary>
@@ -26,8 +27,8 @@ namespace Spewnity
     /// <para>The tweens system supports 2D and 3D transform tweening, as well as SpriteRenderer and Text color and 
     /// alpha. Freely tween independent floats, vectors, and colors using the event system.</para>
     /// <para>Preview your tweens live, just by clicking the button in the inspector while playing.</para>
-    /// <para>Hook in events for tween start, change, and stop. Call Play(string) from OnChange to chain template tweens, or 
-    /// make your callbacks to chain custom tweens.</para>
+    /// <para>Hook in events for tween start, change, and stop. Call Play() from Start/End to play tweens simultaneously 
+    /// or in a sequence. For the latter, you can also call PlayChain(), and for the former just call Play() repeatedly.</para>
     /// </summary>
     public class TweenManager : MonoBehaviour
     {
@@ -175,13 +176,15 @@ namespace Spewnity
             Vector3 vec;
 
             // Add new tweens to active tweens
-            foreach(Tween tween in tweensToAdd)
+            while (tweensToAdd.Count > 0)
             {
+                Tween tween = tweensToAdd[0];
+                tweensToAdd.RemoveAt(0);
+
                 tween.Activate();
                 tweens.Add(tween);
                 if (tween.events != null) tween.events.Start.Invoke(tween);
             }
-            tweensToAdd.Clear();
 
             // Process all active tweens
             foreach(Tween tween in tweens)

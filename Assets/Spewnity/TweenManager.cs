@@ -40,6 +40,7 @@ namespace Spewnity
         /// <param name="tween">The tween instance</param>
         public void Play(Tween tween)
         {
+            Debug.Assert(!tweens.Contains(tween), "Tween is already playing");
             tween.Activate();
             tweens.Add(tween);
             tween.events.Start.Invoke(tween);
@@ -57,6 +58,7 @@ namespace Spewnity
 
         /// <summary>
         /// Stops the supplied tween from running.
+        /// <para>This is very useful if you have looping enabled</para>
         /// </summary>
         /// <param name="tween">The tween instance</param>
         public void Stop(Tween tween)
@@ -212,15 +214,20 @@ namespace Spewnity
 
                 tween.events.Change.Invoke(tween);
                 if (tween.timeRemaining <= 0f)
-                    tween.events.End.Invoke(tween);
+                {
+                    if (--tween.loopsRemaining != 0)
+                        tween.Activate(false);
+                    else tween.events.End.Invoke(tween);
+                }
             }
 
-            tweens.RemoveAll(t => t.timeRemaining <= 0);
+            tweens.RemoveAll(t => t.loopsRemaining == 0);
         }
 
         void OnValidate()
         {
             StopAll();
+            tweenTemplates.ForEach(t => { if (t.loops == 0) t.loops = 1; }); // provide default of 1 for loops
         }
     }
 
@@ -245,8 +252,8 @@ namespace Spewnity
         public Text text = null;
         [Tooltip("the ending value for the tween")]
         public TweenValue dest;
-        [Tooltip("If true, interprets source as relative to the object being tweened, and dest as relative to the source point")]
-        public bool relativeValues;
+        [Tooltip("The number of times to play the tween; use -1 for infinite looping")]
+        public int loops;
         [Tooltip("An optional easing curve")]
         public AnimationCurve easing;
         [Tooltip("Optional event notifications")]
@@ -260,6 +267,8 @@ namespace Spewnity
 
         [HideInInspector]
         public float timeRemaining; // the time remaining to tween
+        [HideInInspector]
+        public int loopsRemaining; // the number of loops still to run
 
         [HideInInspector]
         public TweenValue value; // the current value of the tween
@@ -275,37 +284,37 @@ namespace Spewnity
             this.spriteRenderer = tween.spriteRenderer;
             this.text = tween.text;
             Initialize(tween.name, tween.duration, tween.tweenType, tween.rangeType,
-                tween.source.value, tween.dest.value, tween.relativeValues, tween.easing);
+                tween.source.value, tween.dest.value, tween.loops, tween.easing);
         }
 
         /// <summary>
         /// Constructor. See Tween class for parameter definitions. I'm lazy.
         /// </summary>
         public Tween(string name, float duration, Transform transform, TweenType tweenType, RangeType rangeType,
-            Vector3? source = null, Vector3 ? dest = null, bool relativeValues = false, AnimationCurve easing = null)
+            Vector3? source = null, Vector3 ? dest = null, int loops = 1, AnimationCurve easing = null)
         {
             this.transform = transform;
-            Initialize(name, duration, tweenType, rangeType, source, dest, relativeValues, easing);
+            Initialize(name, duration, tweenType, rangeType, source, dest, loops, easing);
         }
 
         /// <summary>
         /// Constructor. See Tween class for parameter definitions. I'm lazy.
         /// </summary>
         public Tween(string name, float duration, SpriteRenderer spriteRenderer, TweenType tweenType, RangeType rangeType,
-            Vector3? source = null, Vector3 ? dest = null, bool relativeValues = false, AnimationCurve easing = null)
+            Vector3? source = null, Vector3 ? dest = null, int loops = 1, AnimationCurve easing = null)
         {
             this.spriteRenderer = spriteRenderer;
-            Initialize(name, duration, tweenType, rangeType, source, dest, relativeValues, easing);
+            Initialize(name, duration, tweenType, rangeType, source, dest, loops, easing);
         }
 
         /// <summary>
         /// Constructor. See Tween class for parameter definitions. I'm lazy.
         /// </summary>
         public Tween(string name, float duration, Text text, TweenType tweenType, RangeType rangeType,
-            Vector3? source = null, Vector3 ? dest = null, bool relativeValues = false, AnimationCurve easing = null)
+            Vector3? source = null, Vector3 ? dest = null, int loops = 1, AnimationCurve easing = null)
         {
             this.text = text;
-            Initialize(name, duration, tweenType, rangeType, source, dest, relativeValues, easing);
+            Initialize(name, duration, tweenType, rangeType, source, dest, loops, easing);
         }
 
         /// <summary>
@@ -318,7 +327,7 @@ namespace Spewnity
         }
 
         private void Initialize(string name, float duration, TweenType tweenType, RangeType rangeType,
-            Vector3? source, Vector3 ? dest, bool relativeValues, AnimationCurve easing)
+            Vector3? source, Vector3 ? dest, int loops, AnimationCurve easing)
         {
             this.name = name.IsEmpty() ? "default" : name;
             this.duration = duration;
@@ -326,14 +335,14 @@ namespace Spewnity
             this.rangeType = rangeType;
             this.source = new TweenValue(source == null ? Vector3.zero : (Vector3) source);
             this.dest = new TweenValue(dest == null ? Vector3.zero : (Vector3) dest);
-            this.relativeValues = relativeValues;
+            this.loops = loops;
             this.easing = easing;
         }
 
         /// <summary>
         /// Called by Play() to prepare the Tween for updating.
         /// </summary>
-        public void Activate()
+        public void Activate(bool resetLoops = true)
         {
             if (duration <= 0)
                 throw new UnityException("Duration must be > 0");
@@ -343,22 +352,39 @@ namespace Spewnity
             {
                 case RangeType.ObjectToDest:
                     startValue = objectValue;
-                    endValue = (relativeValues ? startValue + dest : dest);
+                    endValue = dest;
+                    break;
+
+                case RangeType.ObjectToDestRelative:
+                    startValue = objectValue;
+                    endValue = startValue + dest;
                     break;
 
                 case RangeType.SourceToDest:
-                    startValue = (relativeValues ? source + objectValue : source);
-                    endValue = (relativeValues ? startValue + dest : dest);
+                    startValue = source;
+                    endValue = dest;
+                    break;
+
+                case RangeType.SourceToDestRelative:
+                    startValue = source + objectValue;
+                    endValue = startValue + dest;
                     break;
 
                 case RangeType.SourceToObject:
-                    startValue = (relativeValues ? source + objectValue : source);
+                    startValue = source;
+                    endValue = objectValue;
+                    break;
+
+                case RangeType.SourceToObjectRelative:
+                    startValue = source + objectValue;
                     endValue = objectValue;
                     break;
             }
 
             value = startValue;
             timeRemaining = duration;
+            if(resetLoops)
+                loopsRemaining = loops;
         }
 
         private TweenValue GetObjectValue()
@@ -526,7 +552,10 @@ namespace Spewnity
     {
         SourceToDest,
         ObjectToDest,
-        SourceToObject
+        SourceToObject,
+        SourceToDestRelative,
+        ObjectToDestRelative,
+        SourceToObjectRelative
     }
 
 #if UNITY_EDITOR
@@ -666,8 +695,10 @@ namespace Spewnity
             }
 
             RangeType rangeType = (RangeType) rangeTypeProp.enumValueIndex;
-            return (rangeType == RangeType.SourceToObject && prop.name == "dest") ||
-                (rangeType == RangeType.ObjectToDest && prop.name == "source");
+            return ((rangeType == RangeType.SourceToObject || rangeType == RangeType.SourceToObjectRelative) &&
+                    prop.name == "dest") ||
+                ((rangeType == RangeType.ObjectToDest || rangeType == RangeType.ObjectToDestRelative) &&
+                    prop.name == "source");
         }
 
         public override float GetPropertyHeight(SerializedProperty prop, GUIContent label)

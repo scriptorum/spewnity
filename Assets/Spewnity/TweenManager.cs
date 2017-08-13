@@ -9,12 +9,11 @@ using UnityEditor;
 using UnityEditorInternal;
 #endif
 
-// TODO New rangeTypes ObjectRelative and SourceRelative
 // TODO Cache TweenTemplate names in dictionary?
 // TODO Add Reverse, PingPong, and Cycles/Looping, although some of this can be approximated with easing
 // TODO A Vec4 lerp is only needed for color, other TweenTypes will be more performant if you lerp just the parts you need.
 // TODO Add ColorWithoutAlpha?
-// TODO Chain tweens together?
+// TODO Chain tweens together? Automatically chain together all tweens with the same name??? [X] Chain to other tweens with same name
 namespace Spewnity
 {
     public class TweenManager : MonoBehaviour
@@ -246,6 +245,8 @@ namespace Spewnity
         public Text text = null;
         [Tooltip("the ending value for the tween")]
         public TweenValue dest;
+        [Tooltip("If true, interprets source as relative to the object being tweened, and dest as relative to the source point")]
+        public bool relativeValues;
         [Tooltip("An optional easing curve")]
         public AnimationCurve easing;
         [Tooltip("Optional event notifications")]
@@ -274,37 +275,37 @@ namespace Spewnity
             this.spriteRenderer = tween.spriteRenderer;
             this.text = tween.text;
             Initialize(tween.name, tween.duration, tween.tweenType, tween.rangeType,
-                tween.source.value, tween.dest.value, tween.easing);
+                tween.source.value, tween.dest.value, tween.relativeValues, tween.easing);
         }
 
         /// <summary>
         /// Constructor. See Tween class for parameter definitions. I'm lazy.
         /// </summary>
         public Tween(string name, float duration, Transform transform, TweenType tweenType, RangeType rangeType,
-            Vector3? source = null, Vector3 ? dest = null, AnimationCurve easing = null)
+            Vector3? source = null, Vector3 ? dest = null, bool relativeValues = false, AnimationCurve easing = null)
         {
             this.transform = transform;
-            Initialize(name, duration, tweenType, rangeType, source, dest, easing);
+            Initialize(name, duration, tweenType, rangeType, source, dest, relativeValues, easing);
         }
 
         /// <summary>
         /// Constructor. See Tween class for parameter definitions. I'm lazy.
         /// </summary>
         public Tween(string name, float duration, SpriteRenderer spriteRenderer, TweenType tweenType, RangeType rangeType,
-            Vector3? source = null, Vector3 ? dest = null, AnimationCurve easing = null)
+            Vector3? source = null, Vector3 ? dest = null, bool relativeValues = false, AnimationCurve easing = null)
         {
             this.spriteRenderer = spriteRenderer;
-            Initialize(name, duration, tweenType, rangeType, source, dest, easing);
+            Initialize(name, duration, tweenType, rangeType, source, dest, relativeValues, easing);
         }
 
         /// <summary>
         /// Constructor. See Tween class for parameter definitions. I'm lazy.
         /// </summary>
         public Tween(string name, float duration, Text text, TweenType tweenType, RangeType rangeType,
-            Vector3? source = null, Vector3 ? dest = null, AnimationCurve easing = null)
+            Vector3? source = null, Vector3 ? dest = null, bool relativeValues = false, AnimationCurve easing = null)
         {
             this.text = text;
-            Initialize(name, duration, tweenType, rangeType, source, dest, easing);
+            Initialize(name, duration, tweenType, rangeType, source, dest, relativeValues, easing);
         }
 
         /// <summary>
@@ -317,7 +318,7 @@ namespace Spewnity
         }
 
         private void Initialize(string name, float duration, TweenType tweenType, RangeType rangeType,
-            Vector3? source, Vector3 ? dest, AnimationCurve easing)
+            Vector3? source, Vector3 ? dest, bool relativeValues, AnimationCurve easing)
         {
             this.name = name.IsEmpty() ? "default" : name;
             this.duration = duration;
@@ -325,6 +326,7 @@ namespace Spewnity
             this.rangeType = rangeType;
             this.source = new TweenValue(source == null ? Vector3.zero : (Vector3) source);
             this.dest = new TweenValue(dest == null ? Vector3.zero : (Vector3) dest);
+            this.relativeValues = relativeValues;
             this.easing = easing;
         }
 
@@ -341,16 +343,16 @@ namespace Spewnity
             {
                 case RangeType.ObjectToDest:
                     startValue = objectValue;
-                    endValue = dest;
+                    endValue = (relativeValues ? startValue + dest : dest);
                     break;
 
                 case RangeType.SourceToDest:
-                    startValue = source;
-                    endValue = dest;
+                    startValue = (relativeValues ? source + objectValue : source);
+                    endValue = (relativeValues ? startValue + dest : dest);
                     break;
 
                 case RangeType.SourceToObject:
-                    startValue = source;
+                    startValue = (relativeValues ? source + objectValue : source);
                     endValue = objectValue;
                     break;
             }
@@ -364,11 +366,17 @@ namespace Spewnity
             switch (tweenType)
             {
                 case TweenType.SpriteRendererAlpha:
+                    spriteRenderer.ThrowIfNull("SpriteRenderer not assigned");
+                    return new TweenValue(spriteRenderer.color.a);
+
                 case TweenType.SpriteRendererColor:
                     spriteRenderer.ThrowIfNull("SpriteRenderer not assigned");
                     return new TweenValue((Vector4) spriteRenderer.color);
 
                 case TweenType.TextAlpha:
+                    text.ThrowIfNull("Text not assigned");
+                    return new TweenValue(text.color.a);
+
                 case TweenType.TextColor:
                     text.ThrowIfNull("Text not assigned");
                     return new TweenValue((Vector4) text.color);
@@ -384,11 +392,17 @@ namespace Spewnity
                     return new TweenValue((Vector4) transform.position);
 
                 case TweenType.LocalRotation2D:
+                    transform.ThrowIfNull("Transform not assigned");
+                    return new TweenValue(transform.localEulerAngles.z);
+
                 case TweenType.LocalRotation3D:
                     transform.ThrowIfNull("Transform not assigned");
                     return new TweenValue((Vector4) transform.localEulerAngles);
 
                 case TweenType.Rotation2D:
+                    transform.ThrowIfNull("Transform not assigned");
+                    return new TweenValue(transform.eulerAngles.z);
+
                 case TweenType.Rotation3D:
                     transform.ThrowIfNull("Transform not assigned");
                     return new TweenValue((Vector4) transform.eulerAngles);
@@ -477,6 +491,11 @@ namespace Spewnity
         {
             value = v;
         }
+
+        public static TweenValue operator + (TweenValue tv1, TweenValue tv2)
+        {
+            return new TweenValue(tv1.value + tv2.value);
+        }
     }
 
     [System.Serializable]
@@ -510,9 +529,8 @@ namespace Spewnity
         SourceToObject
     }
 
-    //////////////////////////////////////////////////////////////////////////////// 
-
 #if UNITY_EDITOR
+    //////////////////////////////////////////////////////////////////////////////// 
     [CustomPropertyDrawer(typeof (Tween))]
     public class TweenPropertyDrawer : PropertyDrawer
     {
@@ -544,6 +562,7 @@ namespace Spewnity
         }
     }
 
+    //////////////////////////////////////////////////////////////////////////////// 
     [CustomPropertyDrawer(typeof (TweenValue))]
     public class TweenValuePropertyDrawer : PropertyDrawer
     {
@@ -658,6 +677,7 @@ namespace Spewnity
         }
     }
 
+    //////////////////////////////////////////////////////////////////////////////// 
     [CustomPropertyDrawer(typeof (Transform))]
     [CustomPropertyDrawer(typeof (SpriteRenderer))]
     [CustomPropertyDrawer(typeof (Text))]

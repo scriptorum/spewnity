@@ -38,6 +38,7 @@ namespace Spewnity
             tween.value = tween.startValue;
             tween.timeRemaining = tween.template.duration;
             tweens.Add(tween);
+            tween.template.events.Start.Invoke(tween);
         }
 
         // Creates a new Tween using the tween template
@@ -154,7 +155,9 @@ namespace Spewnity
 
                 }
 
-                template.onChange.Invoke(tween);
+                template.events.Change.Invoke(tween);
+                if (tween.timeRemaining <= 0f)
+                    template.events.End.Invoke(tween);
             }
 
             tweens.RemoveAll(t => t.timeRemaining <= 0);
@@ -174,7 +177,7 @@ namespace Spewnity
         public Text text = null;
         public TweenValue dest;
         public AnimationCurve easing;
-        public TweenEvent onChange;
+        public TweenEvents events;
 
         public TweenValue GetObjectValue()
         {
@@ -219,6 +222,14 @@ namespace Spewnity
                     throw new UnityException("TweenType" + tweenType + " does not have an object value");
             }
         }
+    }
+
+    [System.Serializable]
+    public struct TweenEvents
+    {
+        public TweenEvent Start;
+        public TweenEvent Change;
+        public TweenEvent End;
     }
 
     public class Tween
@@ -403,8 +414,8 @@ namespace Spewnity
                 case TweenType.TextColor:
                 AddField(value, pos, "x", 46f, 10f, "r");
                 AddField(value, pos, "y", 46f, 10f, "g");
-                AddField(value, pos, "w", 46f, 10f, "b");
-                AddField(value, pos, "z", 46f, 13f, "a");
+                AddField(value, pos, "z", 46f, 10f, "b");
+                AddField(value, pos, "w", 46f, 10f, "a");
                 break;
 
                 case TweenType.SpriteRendererAlpha:
@@ -542,5 +553,4 @@ namespace Spewnity
 
     }
 #endif
-
 }

@@ -11,10 +11,6 @@ using UnityEditorInternal;
 
 // TODO New rangeTypes ObjectRelative and SourceRelative
 // TODO Cache TweenTemplate names in dictionary?
-// TODO Add ability to spawn Tween dynamically using template parameters
-// TODO And also spawn template
-// TODO And also manipulate template list
-// TODO Ability to modify template parameters in tween
 // TODO Add Reverse, PingPong, and Cycles/Looping, although some of this can be approximated with easing
 // TODO A Vec4 lerp is only needed for color, other TweenTypes will be more performant if you lerp just the parts you need.
 // TODO Add ColorWithoutAlpha?
@@ -23,47 +19,96 @@ namespace Spewnity
     public class TweenManager : MonoBehaviour
     {
         public static TweenManager instance;
-        public List<TweenTemplate> tweenTemplates;
+        public List<Tween> tweenTemplates;
+
         private List<Tween> tweens; // active, running tweens
 
-        // Creates a new tween from the template and runs it
-        public void Play(string tweenTemplateName)
+        /// <summary>
+        /// Starts tweening the object as defined by the pre-defined template tween.
+        /// <para>Tween templates are defined in the inspector or by calling AddTemplate()</para>
+        /// </summary>
+        /// <param name="tweenName">The name of the template tween</param>
+        public void Play(string tweenName)
         {
-            Play(GetTween(tweenTemplateName));
+            Play(GetTemplate(tweenName));
         }
 
-        // Runs the tween, see Create
+        /// <summary>
+        /// Starts tweening the object specified by the supplied tween.
+        /// <para>This could be a tween obtained from the pre-defined templates, a clone of a template, or a new Tween instance.</para>
+        /// </summary>
+        /// <param name="tween">The tween instance</param>
         public void Play(Tween tween)
         {
-            tween.value = tween.startValue;
-            tween.timeRemaining = tween.template.duration;
+            tween.Activate();
             tweens.Add(tween);
-            tween.template.events.Start.Invoke(tween);
+            tween.events.Start.Invoke(tween);
         }
 
-        // Creates a new Tween using the tween template
-        // You can modify the start and end values as needed
-        public Tween GetTween(string tweenTemplateName)
+        /// <summary>
+        /// Stops a tween from running by looking up its name.
+        /// <para>This could be a template tween, or a custom tween, as long as you give it a unique name</para>
+        /// </summary>
+        /// <param name="tweenName">The unique name of the tween</param>
+        public void Stop(string tweenName)
         {
-            return GetTween(GetTemplate(tweenTemplateName));
+            Stop(GetTemplate(tweenName));
         }
 
-        // Creates a new Tween using the tween template
-        // You can modify the start and end values as needed
-        public Tween GetTween(TweenTemplate template)
+        /// <summary>
+        /// Stops the supplied tween from running.
+        /// </summary>
+        /// <param name="tween">The tween instance</param>
+        public void Stop(Tween tween)
         {
-            Tween t = new Tween(template);
-            return t;
+            tweens.Remove(tween);
         }
 
-        // Returns the template
-        // It's not recommended to modify the template, unless you always set the same parameters before creating tweens
-        public TweenTemplate GetTemplate(string tweenTemplateName)
+        /// <summary>
+        /// Stops all tweens from running.
+        /// </summary>
+        public void StopAll()
         {
-            TweenTemplate template = tweenTemplates.Find(x => x.name == tweenTemplateName);
-            if (template == null)
-                throw new UnityException("TweenTemplate not found:" + tweenTemplateName);
-            return template;
+            tweens = new List<Tween>();
+        }
+
+        /// <summary>
+        /// Returns the template Tween with supplied name.
+        /// <para>If you modify this directly, you are modifying the template.
+        // You probably want to make a copy with Tween.Clone(), modify the copy, and pass that to Play().</para>
+        /// </summary>
+        /// <param name="tweenName">The unique name of the template Tween</param>
+        /// <returns>The template Tween instance, or throws an exception if not found</returns>
+        public Tween GetTemplate(string tweenName)
+        {
+            Tween tween = tweenTemplates.Find(x => x.name == tweenName);
+            if (tween == null)
+                throw new KeyNotFoundException("Tween not found:" + tweenName);
+            return tween;
+        }
+
+        /// <summary>
+        /// Determines if the named template Tween exists.
+        /// </summary>
+        /// <param name="tweenName">The name of the template Tween</param>
+        /// <returns>True if there is a template Tween defined with the supplied name</returns>
+        public bool TemplateExists(string tweenName)
+        {
+            Tween tween = tweenTemplates.Find(x => x.name == tweenName);
+            return tween != null;
+        }
+
+        /// <summary>
+        /// Adds the tween instance to the list of template Tweens.
+        /// <para>Throws an exception if the tween name is not unique among all the templates</para>
+        /// </summary>
+        /// <param name="tween">The tween instance</param>
+        public void AddTemplate(Tween tween)
+        {
+            if (TemplateExists(tween.name))
+                throw new UnityException("Cannot add tween " + tween.name + " as a template; name already in use");
+
+            tweenTemplates.Add(tween);
         }
 
         void Awake()
@@ -71,151 +116,278 @@ namespace Spewnity
             if (instance != this)
                 instance = this;
             else Debug.Log("There are multiple TweenManagers. Instance is set to the first.");
-            tweens = new List<Tween>();
+            StopAll();
         }
+
+        /// <summary>
+        /// Updates all running tweens. Removes finished tweens.
+        /// </summary>
         void Update()
         {
             Color color;
 
             foreach(Tween tween in tweens)
             {
-                TweenTemplate template = tween.template;
                 tween.timeRemaining -= Time.deltaTime;
                 if (tween.timeRemaining < 0f)
                     tween.timeRemaining = 0f;
-                float t = 1 - tween.timeRemaining / template.duration;
-                if (template.easing.length > 0)
-                    t = template.easing.Evaluate(t);
+                float t = 1 - tween.timeRemaining / tween.duration;
+                if (tween.easing.length > 0)
+                    t = tween.easing.Evaluate(t);
                 Vector4 value = Vector4.LerpUnclamped(tween.startValue.value, tween.endValue.value, t);
                 tween.value.value = value;
 
                 // Apply tween to object
-                switch (template.tweenType)
+                switch (tween.tweenType)
                 {
                     case TweenType.Float:
                         break; // nothing to do here, no object, just callback
 
                     case TweenType.SpriteRendererAlpha:
-                        color = template.spriteRenderer.color;
+                        color = tween.spriteRenderer.color;
                         color.a = value.x;
-                        template.spriteRenderer.color = color;
+                        tween.spriteRenderer.color = color;
                         break;
 
                     case TweenType.TextAlpha:
-                        color = template.text.color;
+                        color = tween.text.color;
                         color.a = value.x;
-                        template.text.color = color;
+                        tween.text.color = color;
                         break;
 
                     case TweenType.SpriteRendererColor:
-                        template.spriteRenderer.color = (Color) value;
+                        tween.spriteRenderer.color = (Color) value;
                         break;
 
                     case TweenType.TextColor:
-                        template.text.color = (Color) value;
+                        tween.text.color = (Color) value;
                         break;
 
                     case TweenType.LocalPosition2D:
-                        template.transform.localPosition = new Vector3(value.x, value.y, template.transform.localPosition.z);
+                        tween.transform.localPosition = new Vector3(value.x, value.y, tween.transform.localPosition.z);
                         break;
 
                     case TweenType.LocalPosition3D:
-                        template.transform.localPosition = (Vector3) value;
+                        tween.transform.localPosition = (Vector3) value;
                         break;
 
                     case TweenType.Position2D:
-                        template.transform.position = new Vector3(value.x, value.y, template.transform.position.z);
+                        tween.transform.position = new Vector3(value.x, value.y, tween.transform.position.z);
                         break;
 
                     case TweenType.Position3D:
-                        template.transform.position = (Vector3) value;
+                        tween.transform.position = (Vector3) value;
                         break;
 
                     case TweenType.Rotation2D:
-                        Vector3 vec = template.transform.eulerAngles;
+                        Vector3 vec = tween.transform.eulerAngles;
                         vec.z = value.x;
-                        template.transform.eulerAngles = vec;
+                        tween.transform.eulerAngles = vec;
                         break;
 
                     case TweenType.Rotation3D:
-                        template.transform.eulerAngles = (Vector3) value;
+                        tween.transform.eulerAngles = (Vector3) value;
                         break;
 
                     case TweenType.Scale2D:
-                        template.transform.localScale = new Vector3(value.x, value.y, template.transform.localScale.z);
+                        tween.transform.localScale = new Vector3(value.x, value.y, tween.transform.localScale.z);
                         break;
 
                     case TweenType.Scale3D:
-                        template.transform.localScale = (Vector3) value;
+                        tween.transform.localScale = (Vector3) value;
                         break;
 
                     default:
-                        Debug.Log("Unknown TweenType:" + template.tweenType);
+                        Debug.Log("Unknown TweenType:" + tween.tweenType);
                         break;
 
                 }
 
-                template.events.Change.Invoke(tween);
+                tween.events.Change.Invoke(tween);
                 if (tween.timeRemaining <= 0f)
-                    template.events.End.Invoke(tween);
+                    tween.events.End.Invoke(tween);
             }
 
             tweens.RemoveAll(t => t.timeRemaining <= 0);
         }
+
+        void OnValidate()
+        {
+            StopAll();
+        }
     }
 
     [System.Serializable]
-    public class TweenTemplate
+    public class Tween
     {
+        [Tooltip("The unique name of the tween; required for template tweens")]
         public string name;
+        [Tooltip("The duration of the tween in seconds, must be > 0")]
         public float duration;
+        [Tooltip("The property that is being tweened")]
         public TweenType tweenType;
+        [Tooltip("Determines if you are supplying both source and dest, or if you're fetching either value from the object being tweened")]
         public RangeType rangeType;
+        [Tooltip("The starting value for the tween")]
         public TweenValue source;
+        [Tooltip("Any GameObject, since they all have a Transform")]
         public Transform transform = null;
+        [Tooltip("Any GameObject that has a SpriteRenderer component")]
         public SpriteRenderer spriteRenderer = null;
+        [Tooltip("Any GameObject that has a Text component")]
         public Text text = null;
+        [Tooltip("the ending value for the tween")]
         public TweenValue dest;
+        [Tooltip("An optional easing curve")]
         public AnimationCurve easing;
+        [Tooltip("Optional event notifications")]
         public TweenEvents events;
 
-        public TweenValue GetObjectValue()
+        [HideInInspector]
+        public TweenValue startValue; // private, used during tweening
+
+        [HideInInspector]
+        public TweenValue endValue; // private, used during tweening
+
+        [HideInInspector]
+        public float timeRemaining; // the time remaining to tween
+
+        [HideInInspector]
+        public TweenValue value; // the current value of the tween
+
+        /// <summary>
+        ///  Constructs a new Tween from an existing Tween instance. Also see Clone().
+        /// <para>Useful for copying a template tween</para>
+        /// /// </summary>
+        /// <param name="tween">The tween instance to copy</param>
+        public Tween(Tween tween)
+        {
+            this.transform = tween.transform;
+            this.spriteRenderer = tween.spriteRenderer;
+            this.text = tween.text;
+            Initialize(tween.name, tween.duration, tween.tweenType, tween.rangeType,
+                tween.source.value, tween.dest.value, tween.easing);
+        }
+
+        /// <summary>
+        /// Constructor. See Tween class for parameter definitions. I'm lazy.
+        /// </summary>
+        public Tween(string name, float duration, Transform transform, TweenType tweenType, RangeType rangeType,
+            Vector3? source = null, Vector3 ? dest = null, AnimationCurve easing = null)
+        {
+            this.transform = transform;
+            Initialize(name, duration, tweenType, rangeType, source, dest, easing);
+        }
+
+        /// <summary>
+        /// Constructor. See Tween class for parameter definitions. I'm lazy.
+        /// </summary>
+        public Tween(string name, float duration, SpriteRenderer spriteRenderer, TweenType tweenType, RangeType rangeType,
+            Vector3? source = null, Vector3 ? dest = null, AnimationCurve easing = null)
+        {
+            this.spriteRenderer = spriteRenderer;
+            Initialize(name, duration, tweenType, rangeType, source, dest, easing);
+        }
+
+        /// <summary>
+        /// Constructor. See Tween class for parameter definitions. I'm lazy.
+        /// </summary>
+        public Tween(string name, float duration, Text text, TweenType tweenType, RangeType rangeType,
+            Vector3? source = null, Vector3 ? dest = null, AnimationCurve easing = null)
+        {
+            this.text = text;
+            Initialize(name, duration, tweenType, rangeType, source, dest, easing);
+        }
+
+        /// <summary>
+        ///  Clones the Tween instance
+        /// </summary>
+        /// <returns>A copy of the Tween</returns>
+        public Tween Clone()
+        {
+            return new Tween(this);
+        }
+
+        private void Initialize(string name, float duration, TweenType tweenType, RangeType rangeType,
+            Vector3? source, Vector3 ? dest, AnimationCurve easing)
+        {
+            this.name = name.IsEmpty() ? "default" : name;
+            this.duration = duration;
+            this.tweenType = tweenType;
+            this.rangeType = rangeType;
+            this.source = new TweenValue(source == null ? Vector3.zero : (Vector3) source);
+            this.dest = new TweenValue(dest == null ? Vector3.zero : (Vector3) dest);
+            this.easing = easing;
+        }
+
+        /// <summary>
+        /// Called by Play() to prepare the Tween for updating.
+        /// </summary>
+        public void Activate()
+        {
+            if (duration <= 0)
+                throw new UnityException("Duration must be > 0");
+
+            TweenValue objectValue = GetObjectValue();
+            switch (rangeType)
+            {
+                case RangeType.ObjectToDest:
+                    startValue = objectValue;
+                    endValue = dest;
+                    break;
+
+                case RangeType.SourceToDest:
+                    startValue = source;
+                    endValue = dest;
+                    break;
+
+                case RangeType.SourceToObject:
+                    startValue = source;
+                    endValue = objectValue;
+                    break;
+            }
+
+            value = startValue;
+            timeRemaining = duration;
+        }
+
+        private TweenValue GetObjectValue()
         {
             switch (tweenType)
             {
                 case TweenType.SpriteRendererAlpha:
                 case TweenType.SpriteRendererColor:
-                    spriteRenderer.ThrowIfNull();
+                    spriteRenderer.ThrowIfNull("SpriteRenderer not assigned");
                     return new TweenValue((Vector4) spriteRenderer.color);
 
                 case TweenType.TextAlpha:
                 case TweenType.TextColor:
-                    text.ThrowIfNull();
+                    text.ThrowIfNull("Text not assigned");
                     return new TweenValue((Vector4) text.color);
 
                 case TweenType.LocalPosition2D:
                 case TweenType.LocalPosition3D:
-                    transform.ThrowIfNull();
+                    transform.ThrowIfNull("Transform not assigned");
                     return new TweenValue((Vector4) transform.localPosition);
 
                 case TweenType.Position2D:
                 case TweenType.Position3D:
-                    transform.ThrowIfNull();
+                    transform.ThrowIfNull("Transform not assigned");
                     return new TweenValue((Vector4) transform.position);
 
                 case TweenType.LocalRotation2D:
                 case TweenType.LocalRotation3D:
-                    transform.ThrowIfNull();
+                    transform.ThrowIfNull("Transform not assigned");
                     return new TweenValue((Vector4) transform.localEulerAngles);
 
                 case TweenType.Rotation2D:
                 case TweenType.Rotation3D:
-                    transform.ThrowIfNull();
+                    transform.ThrowIfNull("Transform not assigned");
                     return new TweenValue((Vector4) transform.eulerAngles);
 
                 case TweenType.Scale2D:
                 case TweenType.Scale3D:
-                    transform.ThrowIfNull();
+                    transform.ThrowIfNull("Transform not assigned");
                     return new TweenValue((Vector4) transform.localScale);
 
                 default:
@@ -225,47 +397,21 @@ namespace Spewnity
     }
 
     [System.Serializable]
-    public struct TweenEvents
+    public class TweenEvents
     {
+        [Tooltip("Invoked when the tween is activated, but before the object gets its first update")]
         public TweenEvent Start;
+        [Tooltip("Invoked after the tween is updated, use this for Float tweens")]
         public TweenEvent Change;
+        [Tooltip("Invoked when an updating tween is has finished but before it is removed; you can set timeRemaining to duration to prevent the tween's removal")]
         public TweenEvent End;
     }
 
-    public class Tween
-    {
-        public TweenValue value;
-        public TweenValue startValue;
-        public TweenValue endValue;
-        public float timeRemaining;
-        public TweenTemplate template;
-
-        public Tween(TweenTemplate template)
-        {
-            switch (template.rangeType)
-            {
-                case RangeType.ObjectToDest:
-                    startValue = template.GetObjectValue();
-                    endValue = template.dest;
-                    break;
-
-                case RangeType.SourceToDest:
-                    startValue = template.source;
-                    endValue = template.dest;
-                    break;
-
-                case RangeType.SourceToObject:
-                    startValue = template.source;
-                    endValue = template.GetObjectValue();
-                    break;
-            }
-
-            this.template = template;
-            value = startValue;
-            timeRemaining = 0f;
-        }
-    }
-
+    /// <summary>
+    /// A wrapper for a tweenable value. 
+    /// <para>The underlying type is a Vector4. Use the GetXXX() functions to retrieve the native value 
+    /// relevant to the TweenType.</para>
+    /// </summary>
     [System.Serializable]
     public struct TweenValue
     {
@@ -280,21 +426,25 @@ namespace Spewnity
             value = vec;
         }
 
+        /// <returns>2D rotation angle, alpha or raw float</returns>
         public float GetFloat()
         {
             return value.x;
         }
 
+        /// <returns>2D position and scale</returns>
         public Vector2 GetVector2()
         {
             return (Vector2) value;
         }
 
+        /// <returns>All 3D tween types</returns>
         public Vector3 GetVector3()
         {
             return (Vector3) value;
         }
 
+        /// <returns>Colors</returns>
         public Color GetColor()
         {
             return (Color) value;
@@ -347,15 +497,15 @@ namespace Spewnity
     [System.Serializable]
     public enum RangeType
     {
+        SourceToDest,
         ObjectToDest,
-        SourceToObject,
-        SourceToDest
+        SourceToObject
     }
 
     //////////////////////////////////////////////////////////////////////////////// 
 
 #if UNITY_EDITOR
-    [CustomPropertyDrawer(typeof (TweenTemplate))]
+    [CustomPropertyDrawer(typeof (Tween))]
     public class TweenPropertyDrawer : PropertyDrawer
     {
         public override void OnGUI(Rect pos, SerializedProperty prop, GUIContent label)
@@ -371,6 +521,7 @@ namespace Spewnity
                 {
                     TweenManager tm = (TweenManager) prop.serializedObject.targetObject;
                     string name = prop.serializedObject.FindProperty(prop.propertyPath + ".name").stringValue;
+                    tm.StopAll();
                     tm.Play(name);
                 }
             }

@@ -17,7 +17,7 @@ using UnityEditorInternal;
 // TODO Should Lerp be Unclamped for things like Colors?
 // TODO Some settings cause the initial value to be skipped inappropriately - e.g., Float 0-60 at 60FPS starts at 1 not 0.
 //      This is perhaps ok for ObjectToSource settings, but it's bad for pretty much everything else, no?
-// TODO Create a more formal structure to do chaining and layering of tweens.
+// TODO Create a more formal structure to do chaining and layering of tweens. Maybe you pick a target, and then have a set of TweenRules per target, each with their own delay?
 namespace Spewnity
 {
     /// <summary>
@@ -55,7 +55,7 @@ namespace Spewnity
         /// <param name="tween">The tween instance</param>
         public void Play(Tween tween)
         {
-            Debug.Assert(!tweens.Contains(tween), "Tween is already playing");
+            Debug.Assert(!tweens.Contains(tween), "Tween '" + tween.name + "' is already playing");
             tweensToAdd.Add(tween);
         }
 
@@ -96,7 +96,7 @@ namespace Spewnity
         {
             Tween[] tweensToChain = new Tween[tweenNames.Length];
             for (int i = 0; i < tweenNames.Length; i++)
-                tweensToChain[i] = GetTemplate(tweenNames[i]).Clone();
+                tweensToChain[i] = GetTemplate(tweenNames[i]).Clone(true);
             PlayChain(tweensToChain);
         }
 
@@ -350,13 +350,14 @@ namespace Spewnity
             /// <para>Useful for copying a template tween</para>
             /// /// </summary>
             /// <param name="tween">The tween instance to copy</param>
-            public Tween(Tween tween)
+            /// <param name="includeEvents">If true, shares the events from the tween being copied; if false, starts with no events</param>
+            public Tween(Tween tween, bool includeEvents = false)
             {
                 this.transform = tween.transform;
                 this.spriteRenderer = tween.spriteRenderer;
                 this.text = tween.text;
                 Initialize(tween.name, tween.duration, tween.tweenType, tween.rangeType,
-                    tween.source.value, tween.dest.value, tween.loops, tween.easing, tween.events = null);
+                    tween.source.value, tween.dest.value, tween.loops, includeEvents ? tween.easing : null);
             }
 
             /// <summary>
@@ -393,9 +394,9 @@ namespace Spewnity
             ///  Clones the Tween instance
             /// </summary>
             /// <returns>A copy of the Tween</returns>
-            public Tween Clone()
+            public Tween Clone(bool includeEvents = false)
             {
-                return new Tween(this);
+                return new Tween(this, includeEvents);
             }
 
             private void Initialize(string name, float duration, TweenType tweenType, RangeType rangeType,

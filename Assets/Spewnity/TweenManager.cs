@@ -10,6 +10,7 @@ using UnityEditorInternal;
 #endif
 
 // TODO Cache TweenTemplate names in dictionary?
+// TODO Add Reverse, PingPong, although some of this can be approximated with easing
 // TODO A Vec4 lerp is only needed for color, other TweenTypes will be more performant if you lerp just the parts you need.
 // TODO Add ColorWithoutAlpha? It's already a pretty long list!
 // TODO Does it make sense to create a TweenTarget class as a Transform, and pull the Text or SpriteRenderer from it? What if a game object has both?
@@ -21,10 +22,11 @@ namespace Spewnity
 {
     /// <summary>
     /// Another tweening system.
-    /// <para>You can specify tween templates in the inspector or through the API. Those templates tweens can be run 
-    /// as defined with Play(string), or they can be used as templates: clone and modify the tween, and then Play(tween).</para>
+    /// <para>You can specify persistant tweens in the inspector or ad-hoc ones through the API. Persistent tweens can be run 
+    /// as defined with Play(string), or they can be used as templates: Clone() and modify the tween, and then Play(tween).</para>
     /// <para>The tweens system supports 2D and 3D transform tweening, as well as SpriteRenderer and Text color and 
-    /// alpha. Freely tween independent floats, vectors, and colors using the event system.</para>
+    /// alpha. Freely tween independent floats, vectors, and colors using the event system. Supports easing, ping-pong, 
+    /// reverse, and relative tween values.</para>
     /// <para>Preview your tweens live, just by clicking the button in the inspector while playing.</para>
     /// <para>Hook in events for tween start, change, and stop. Call Play() from Start/End to play tweens simultaneously 
     /// or in a sequence. For the latter, you can also call PlayChain(), and for the former just call Play() repeatedly.</para>
@@ -98,7 +100,7 @@ namespace Spewnity
         {
             Tween[] tweensToChain = new Tween[tweenNames.Length];
             for (int i = 0; i < tweenNames.Length; i++)
-                tweensToChain[i] = GetTemplate(tweenNames[i]).Clone(true);
+                tweensToChain[i] = GetTemplate(tweenNames[i]).Clone(false);
             PlayChain(tweensToChain);
         }
 

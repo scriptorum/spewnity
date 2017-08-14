@@ -15,8 +15,6 @@ using UnityEditorInternal;
 // TODO Add ColorWithoutAlpha?
 // TODO Editor and PropertyDrawer work is such a drag - look into attributes and helper functions
 // TODO Should Lerp be Unclamped for things like Colors?
-// TODO Some settings cause the initial value to be skipped inappropriately - e.g., Float 0-60 at 60FPS starts at 1 not 0.
-//      This is perhaps ok for ObjectToSource settings, but it's bad for pretty much everything else, no?
 // TODO Create a more formal structure to do chaining and layering of tweens. Maybe you pick a target, and then have a set of TweenRules per target, each with their own delay?
 namespace Spewnity
 {
@@ -172,109 +170,21 @@ namespace Spewnity
         /// </summary>
         void Update()
         {
-            Color color;
-            Vector3 vec;
+            ProcessActiveTweens();
+            ProcessNewTweens();
+        }
 
-            // Add new tweens to active tweens
-            while (tweensToAdd.Count > 0)
-            {
-                Tween tween = tweensToAdd[0];
-                tweensToAdd.RemoveAt(0);
-
-                tween.Activate();
-                tweens.Add(tween);
-                if (tween.events != null) tween.events.Start.Invoke(tween);
-            }
-
+        public void ProcessActiveTweens()
+        {
             // Process all active tweens
             foreach(Tween tween in tweens)
             {
                 tween.timeRemaining -= Time.deltaTime;
                 if (tween.timeRemaining < 0f)
                     tween.timeRemaining = 0f;
-                float t = 1 - tween.timeRemaining / tween.duration;
-                if (tween.easing.length > 0)
-                    t = tween.easing.Evaluate(t);
-                Vector4 value = Vector4.LerpUnclamped(tween.startValue.value, tween.endValue.value, t);
-                tween.value.value = value;
 
-                // Apply tween to object
-                switch (tween.tweenType)
-                {
-                    case TweenType.Float:
-                    case TweenType.Vector2:
-                    case TweenType.Vector3:
-                    case TweenType.Vector4:
-                    case TweenType.Color:
-                        break; // nothing to do here, no object, just callback
+                ApplyTween(tween);
 
-                    case TweenType.SpriteRendererAlpha:
-                        color = tween.spriteRenderer.color;
-                        color.a = value.x;
-                        tween.spriteRenderer.color = color;
-                        break;
-
-                    case TweenType.TextAlpha:
-                        color = tween.text.color;
-                        color.a = value.x;
-                        tween.text.color = color;
-                        break;
-
-                    case TweenType.SpriteRendererColor:
-                        tween.spriteRenderer.color = (Color) value;
-                        break;
-
-                    case TweenType.TextColor:
-                        tween.text.color = (Color) value;
-                        break;
-
-                    case TweenType.LocalPosition2D:
-                        tween.transform.localPosition = new Vector3(value.x, value.y, tween.transform.localPosition.z);
-                        break;
-
-                    case TweenType.LocalPosition3D:
-                        tween.transform.localPosition = (Vector3) value;
-                        break;
-
-                    case TweenType.Position2D:
-                        tween.transform.position = new Vector3(value.x, value.y, tween.transform.position.z);
-                        break;
-
-                    case TweenType.Position3D:
-                        tween.transform.position = (Vector3) value;
-                        break;
-
-                    case TweenType.Rotation2D:
-                        vec = tween.transform.eulerAngles;
-                        vec.z = value.x;
-                        tween.transform.eulerAngles = vec;
-                        break;
-
-                    case TweenType.LocalRotation2D:
-                        vec = tween.transform.localEulerAngles;
-                        vec.z = value.x;
-                        tween.transform.localEulerAngles = vec;
-                        break;
-
-                    case TweenType.Rotation3D:
-                        tween.transform.eulerAngles = (Vector3) value;
-                        break;
-
-                    case TweenType.Scale2D:
-                        tween.transform.localScale = new Vector3(value.x, value.y, tween.transform.localScale.z);
-                        break;
-
-                    case TweenType.Scale3D:
-                        tween.transform.localScale = (Vector3) value;
-                        break;
-
-                    default:
-                        Debug.Log("Unknown TweenType:" + tween.tweenType);
-                        break;
-
-                }
-
-                if (tween.events != null) tween.events.Change.Invoke(tween);
                 if (tween.timeRemaining <= 0f)
                 {
                     // Tween has finished loop
@@ -290,6 +200,112 @@ namespace Spewnity
             tweens.RemoveAll(t => t.loopsRemaining == 0);
         }
 
+        public void ProcessNewTweens()
+        {
+            // Add new tweens to active tweens
+            while (tweensToAdd.Count > 0)
+            {
+                Tween tween = tweensToAdd[0];
+                tweensToAdd.RemoveAt(0);
+
+                tween.Activate();
+                tweens.Add(tween);
+                if (tween.events != null) tween.events.Start.Invoke(tween);
+
+                ApplyTween(tween);
+            }
+        }
+
+        private void ApplyTween(Tween tween)
+        {
+            Color color;
+            Vector3 vec;
+
+            float t = 1 - tween.timeRemaining / tween.duration;
+            if (tween.easing.length > 0)
+                t = tween.easing.Evaluate(t);
+            Vector4 value = Vector4.LerpUnclamped(tween.startValue.value, tween.endValue.value, t);
+            tween.value.value = value;
+
+            // Apply tween to object
+            switch (tween.tweenType)
+            {
+                case TweenType.Float:
+                case TweenType.Vector2:
+                case TweenType.Vector3:
+                case TweenType.Vector4:
+                case TweenType.Color:
+                    break; // nothing to do here, no object, just callback
+
+                case TweenType.SpriteRendererAlpha:
+                    color = tween.spriteRenderer.color;
+                    color.a = value.x;
+                    tween.spriteRenderer.color = color;
+                    break;
+
+                case TweenType.TextAlpha:
+                    color = tween.text.color;
+                    color.a = value.x;
+                    tween.text.color = color;
+                    break;
+
+                case TweenType.SpriteRendererColor:
+                    tween.spriteRenderer.color = (Color) value;
+                    break;
+
+                case TweenType.TextColor:
+                    tween.text.color = (Color) value;
+                    break;
+
+                case TweenType.LocalPosition2D:
+                    tween.transform.localPosition = new Vector3(value.x, value.y, tween.transform.localPosition.z);
+                    break;
+
+                case TweenType.LocalPosition3D:
+                    tween.transform.localPosition = (Vector3) value;
+                    break;
+
+                case TweenType.Position2D:
+                    tween.transform.position = new Vector3(value.x, value.y, tween.transform.position.z);
+                    break;
+
+                case TweenType.Position3D:
+                    tween.transform.position = (Vector3) value;
+                    break;
+
+                case TweenType.Rotation2D:
+                    vec = tween.transform.eulerAngles;
+                    vec.z = value.x;
+                    tween.transform.eulerAngles = vec;
+                    break;
+
+                case TweenType.LocalRotation2D:
+                    vec = tween.transform.localEulerAngles;
+                    vec.z = value.x;
+                    tween.transform.localEulerAngles = vec;
+                    break;
+
+                case TweenType.Rotation3D:
+                    tween.transform.eulerAngles = (Vector3) value;
+                    break;
+
+                case TweenType.Scale2D:
+                    tween.transform.localScale = new Vector3(value.x, value.y, tween.transform.localScale.z);
+                    break;
+
+                case TweenType.Scale3D:
+                    tween.transform.localScale = (Vector3) value;
+                    break;
+
+                default:
+                    Debug.Log("Unknown TweenType:" + tween.tweenType);
+                    break;
+
+            }
+
+            if (tween.events != null) tween.events.Change.Invoke(tween);
+        }
+
         void OnValidate()
         {
             StopAll();
@@ -298,7 +314,7 @@ namespace Spewnity
 
         public void DebugCallback(Tween t)
         {
-            Debug.Log("Tween Callback: " + t.value.value);
+            Debug.Log("Tween Callback: " + t.value.value.ToString("F4"));
         }
 
         //////////////////////////////////////////////////////////////////////////////// 

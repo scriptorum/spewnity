@@ -10,12 +10,13 @@ using UnityEditorInternal;
 #endif
 
 // TODO Cache TweenTemplate names in dictionary?
-// TODO Add Reverse, PingPong, although some of this can be approximated with easing
 // TODO A Vec4 lerp is only needed for color, other TweenTypes will be more performant if you lerp just the parts you need.
-// TODO Add ColorWithoutAlpha?
+// TODO Add ColorWithoutAlpha? It's already a pretty long list!
+// TODO Does it make sense to create a TweenTarget class as a Transform, and pull the Text or SpriteRenderer from it? What if a game object has both?
 // TODO Editor and PropertyDrawer work is such a drag - look into attributes and helper functions
-// TODO Should Lerp be Unclamped for things like Colors?
+// TODO Should Lerp be clamped for things like Colors?
 // TODO Create a more formal structure to do chaining and layering of tweens. Maybe you pick a target, and then have a set of TweenRules per target, each with their own delay?
+// TODO Is it possible to clone a UnityEvent? It might not be necessary but I'd like to be able to clone the TweenEvents object properly.
 namespace Spewnity
 {
     /// <summary>
@@ -31,7 +32,10 @@ namespace Spewnity
     public class TweenManager : MonoBehaviour
     {
         public static TweenManager instance;
+        [Tooltip("A set of one or more persistant tweens, that can also be used as tween templates")]
         public List<Tween> tweenTemplates;
+        [Tooltip("If you have multiple TweenManagers, setting this to true ensures this TweenManager is assigned to TweenManager.instance")]
+        public bool primaryInstance;
 
         private List<Tween> tweens = new List<Tween>();
         private List<Tween> tweensToAdd = new List<Tween>();
@@ -113,8 +117,8 @@ namespace Spewnity
                 Tween thisTween = tweensToChain[i];
                 Tween nextTween = tweensToChain[i + 1];
                 UnityAction<Tween> action = new UnityAction<Tween>(delegate { Play(nextTween); });
-                action += delegate { thisTween.events.End.RemoveListener(action); };
-                thisTween.events.End.AddListener(action);
+                action += delegate { thisTween.options.events.End.RemoveListener(action); };
+                thisTween.options.events.End.AddListener(action);
             }
             Play(tweensToChain[0]);
         }
@@ -160,9 +164,8 @@ namespace Spewnity
 
         void Awake()
         {
-            if (instance != this)
-                instance = this;
-            else Debug.Log("There are multiple TweenManagers. Instance is set to the first.");
+            if (TweenManager.instance == null || this.primaryInstance)
+                TweenManager.instance = this;
         }
 
         /// <summary>
@@ -192,7 +195,7 @@ namespace Spewnity
                         tween.Activate(false);
 
                     // Tween has finished all iterations
-                    else if (tween.events != null) tween.events.End.Invoke(tween);
+                    else tween.options.events.End.Invoke(tween);
                 }
             }
 
@@ -210,7 +213,7 @@ namespace Spewnity
 
                 tween.Activate();
                 tweens.Add(tween);
-                if (tween.events != null) tween.events.Start.Invoke(tween);
+                if (tween.options.events != null) tween.options.events.Start.Invoke(tween);
 
                 ApplyTween(tween);
             }
@@ -221,9 +224,12 @@ namespace Spewnity
             Color color;
             Vector3 vec;
 
-            float t = 1 - tween.timeRemaining / tween.duration;
-            if (tween.easing.length > 0)
-                t = tween.easing.Evaluate(t);
+            float t = tween.timeRemaining / tween.duration;
+            if (tween.options.pingPong)
+                t = (t < 0.5f ? 1f - t * 2 : (t - 0.5f) * 2);
+            if (!tween.options.reverse) t = 1 - t;
+            if (tween.options.easing.length > 0)
+                t = tween.options.easing.Evaluate(t);
             Vector4 value = Vector4.LerpUnclamped(tween.startValue.value, tween.endValue.value, t);
             tween.value.value = value;
 
@@ -303,18 +309,23 @@ namespace Spewnity
 
             }
 
-            if (tween.events != null) tween.events.Change.Invoke(tween);
+            if (tween.options.events != null) tween.options.events.Change.Invoke(tween);
         }
 
         void OnValidate()
         {
             StopAll();
-            tweenTemplates.ForEach(t => { if (t.loops == 0) t.loops = 1; }); // provide default of 1 for loops
+
+            // Provide default values
+            tweenTemplates.ForEach(tween => { if (tween.options.loops == 0) tween.options.loops = 1; });
         }
 
         public void DebugCallback(Tween t)
         {
-            Debug.Log("Tween Callback: " + t.value.value.ToString("F4"));
+            Debug.Log("Tween name:" + t.name +
+                " time:" + t.timeRemaining + "/" + t.duration +
+                " loops:" + t.loopsRemaining + "/" + t.options.loops +
+                " value:" + t.value.Vector4());
         }
 
         //////////////////////////////////////////////////////////////////////////////// 
@@ -340,12 +351,9 @@ namespace Spewnity
             public Text text = null;
             [Tooltip("the ending value for the tween")]
             public TweenValue dest;
-            [Tooltip("The number of times to play the tween; use -1 for infinite looping")]
-            public int loops;
-            [Tooltip("An optional easing curve")]
-            public AnimationCurve easing;
-            [Tooltip("Optional event notifications")]
-            public TweenEvents events = new TweenEvents();
+
+            [Tooltip("Advanced Options")]
+            public TweenOptions options = new TweenOptions();
 
             [HideInInspector]
             public TweenValue startValue; // private, used during tweening
@@ -372,38 +380,39 @@ namespace Spewnity
                 this.transform = tween.transform;
                 this.spriteRenderer = tween.spriteRenderer;
                 this.text = tween.text;
+                TweenOptions options = tween.options.Clone(includeEvents);
                 Initialize(tween.name, tween.duration, tween.tweenType, tween.rangeType,
-                    tween.source.value, tween.dest.value, tween.loops, includeEvents ? tween.easing : null);
+                    tween.source.value, tween.dest.value, options);
             }
 
             /// <summary>
             /// Constructor. See Tween class for parameter definitions. I'm lazy.
             /// </summary>
             public Tween(string name, float duration, Transform transform, TweenType tweenType, RangeType rangeType,
-                Vector4? source = null, Vector4 ? dest = null, int loops = 1, AnimationCurve easing = null, TweenEvents events = null)
+                Vector4? source = null, Vector4 ? dest = null, TweenOptions options = null)
             {
                 this.transform = transform;
-                Initialize(name, duration, tweenType, rangeType, source, dest, loops, easing, events);
+                Initialize(name, duration, tweenType, rangeType, source, dest, options);
             }
 
             /// <summary>
             /// Constructor. See Tween class for parameter definitions. I'm lazy.
             /// </summary>
             public Tween(string name, float duration, SpriteRenderer spriteRenderer, TweenType tweenType, RangeType rangeType,
-                Vector4? source = null, Vector4 ? dest = null, int loops = 1, AnimationCurve easing = null, TweenEvents events = null)
+                Vector4? source = null, Vector4 ? dest = null, TweenOptions options = null)
             {
                 this.spriteRenderer = spriteRenderer;
-                Initialize(name, duration, tweenType, rangeType, source, dest, loops, easing, events);
+                Initialize(name, duration, tweenType, rangeType, source, dest, options);
             }
 
             /// <summary>
             /// Constructor. See Tween class for parameter definitions. I'm lazy.
             /// </summary>
             public Tween(string name, float duration, Text text, TweenType tweenType, RangeType rangeType,
-                Vector4? source = null, Vector4 ? dest = null, int loops = 1, AnimationCurve easing = null, TweenEvents events = null)
+                Vector4? source = null, Vector4 ? dest = null, TweenOptions options = null)
             {
                 this.text = text;
-                Initialize(name, duration, tweenType, rangeType, source, dest, loops, easing, events);
+                Initialize(name, duration, tweenType, rangeType, source, dest, options);
             }
 
             /// <summary>
@@ -416,7 +425,7 @@ namespace Spewnity
             }
 
             private void Initialize(string name, float duration, TweenType tweenType, RangeType rangeType,
-                Vector4? source, Vector4 ? dest, int loops, AnimationCurve easing, TweenEvents events = null)
+                Vector4? source, Vector4 ? dest, TweenOptions options)
             {
                 this.name = name.IsEmpty() ? "default" : name;
                 this.duration = duration;
@@ -424,9 +433,7 @@ namespace Spewnity
                 this.rangeType = rangeType;
                 this.source = new TweenValue(source == null ? Vector4.zero : (Vector4) source);
                 this.dest = new TweenValue(dest == null ? Vector4.zero : (Vector4) dest);
-                this.loops = loops;
-                this.easing = easing;
-                this.events = events == null ? new TweenEvents() : events;
+                this.options = options == null ? new TweenOptions() : options;
             }
 
             /// <summary>
@@ -441,31 +448,16 @@ namespace Spewnity
                 {
                     case RangeType.ObjectToDest:
                         startValue = GetObjectValue();
-                        endValue = dest;
-                        break;
-
-                    case RangeType.ObjectToDestRelative:
-                        startValue = GetObjectValue();
-                        endValue = startValue + dest;
+                        endValue = options.relativeVals ? startValue + dest : dest;
                         break;
 
                     case RangeType.SourceToDest:
-                        startValue = source;
-                        endValue = dest;
-                        break;
-
-                    case RangeType.SourceToDestRelative:
-                        startValue = source + GetObjectValue();
-                        endValue = startValue + dest;
+                        startValue = options.relativeVals ? startValue + source : source;
+                        endValue = options.relativeVals ? startValue + dest : dest;
                         break;
 
                     case RangeType.SourceToObject:
-                        startValue = source;
-                        endValue = GetObjectValue();
-                        break;
-
-                    case RangeType.SourceToObjectRelative:
-                        startValue = source + GetObjectValue();
+                        startValue = options.relativeVals ? startValue + source : source;
                         endValue = GetObjectValue();
                         break;
                 }
@@ -473,7 +465,7 @@ namespace Spewnity
                 value = startValue;
                 timeRemaining = duration;
                 if (resetLoops)
-                    loopsRemaining = loops;
+                    loopsRemaining = options.loops;
             }
 
             private TweenValue GetObjectValue()
@@ -546,10 +538,53 @@ namespace Spewnity
         {
             [Tooltip("Invoked when the tween is activated, but before the object gets its first update")]
             public TweenEvent Start = new TweenEvent();
+
             [Tooltip("Invoked after the tween is updated, use this for Float tweens")]
             public TweenEvent Change = new TweenEvent();
+
             [Tooltip("Invoked when an updating tween is has finished but before it is removed; you can set timeRemaining to duration to prevent the tween's removal")]
             public TweenEvent End = new TweenEvent();
+        }
+
+        [System.Serializable]
+        public class TweenOptions
+        {
+            [Tooltip("The number of times to play the tween; use -1 for infinite looping")]
+            public int loops;
+
+            [Tooltip("If true, source/dest values are interpreted relative to the target")]
+            public bool relativeVals;
+
+            [Tooltip("If true, plays tween in reverse (1-0 instead of 0-1)")]
+            public bool pingPong;
+
+            [Tooltip("If true, plays tween in reverse (1-0 instead of 0-1)")]
+            public bool reverse;
+
+            [Tooltip("An optional easing curve")]
+            public AnimationCurve easing;
+
+            [Tooltip("Optional event notifications")]
+            public TweenEvents events = new TweenEvents();
+
+            public TweenOptions() { }
+
+            public TweenOptions(TweenOptions options, bool includeEvents = false)
+            {
+                loops = options.loops;
+                relativeVals = options.relativeVals;
+                pingPong = options.pingPong;
+                reverse = options.reverse;
+                easing = options.easing;
+
+                if (includeEvents)
+                    events = options.events;
+            }
+
+            public TweenOptions Clone(bool includeEvents = false)
+            {
+                return new TweenOptions(this, includeEvents);
+            }
         }
 
         //////////////////////////////////////////////////////////////////////////////// 
@@ -669,10 +704,7 @@ namespace Spewnity
         {
             SourceToDest,
             ObjectToDest,
-            SourceToObject,
-            SourceToDestRelative,
-            ObjectToDestRelative,
-            SourceToObjectRelative
+            SourceToObject
         }
 
 #if UNITY_EDITOR
@@ -812,10 +844,8 @@ namespace Spewnity
                 SerializedProperty rangeTypeProp = prop.serializedObject.FindProperty(rangeTypePath);
 
                 RangeType rangeType = (RangeType) rangeTypeProp.enumValueIndex;
-                return ((rangeType == RangeType.SourceToObject || rangeType == RangeType.SourceToObjectRelative) &&
-                        prop.name == "dest") ||
-                    ((rangeType == RangeType.ObjectToDest || rangeType == RangeType.ObjectToDestRelative) &&
-                        prop.name == "source");
+                return (rangeType == RangeType.SourceToObject && prop.name == "dest") ||
+                    (rangeType == RangeType.ObjectToDest && prop.name == "source");
             }
 
             public override float GetPropertyHeight(SerializedProperty prop, GUIContent label)

@@ -1,27 +1,39 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
 
 // TODO Create an editor interface for viewing and setting counts
 namespace Spewnity
 {
     /// <summary>
-    /// General functions for responding to callbacks. Can log messages and keep counts of calls.
+    /// General functions for responding to and kicking off callbacks. 
+    /// <para>Callbacks to log messages. Callbaks to keep named counts of calls. Events to kickoff callbacks on awake, start, etc.</para>
     /// </summary>
     public class CallbackHelper : MonoBehaviour
     {
         public bool logCountsNow = false;
+        public CallbackHelperEvents callbackEvents;
+
         private const string DEFAULT_NAME = "default";
         private Dictionary<string, int> counter;
 
         void Awake()
         {
             ResetAllCounts();
+            callbackEvents.OnAwake.Invoke();
+        }
+
+        void Start()
+        {
+            callbackEvents.OnStart.Invoke();
         }
 
 #if UNITY_EDITOR
         void OnValidate()
         {
+            callbackEvents.OnValidate.Invoke();
+
             if (logCountsNow)
             {
                 logCountsNow = false;
@@ -29,6 +41,11 @@ namespace Spewnity
             }
         }
 #endif
+
+        void Update()
+        {
+            callbackEvents.OnUpdate.Invoke();
+        }
 
         /// <summary>
         /// Logs a message to the console
@@ -110,5 +127,14 @@ namespace Spewnity
                 counter[name] = 0;
             return name;
         }
+    }
+
+    [System.Serializable]
+    public struct CallbackHelperEvents
+    {
+        public UnityEvent OnAwake;
+        public UnityEvent OnStart;
+        public UnityEvent OnUpdate;
+        public UnityEvent OnValidate;
     }
 }

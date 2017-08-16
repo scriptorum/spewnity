@@ -405,16 +405,16 @@ namespace Spewnity
         [Tooltip("The duration of the tween in seconds, must be > 0")]
         public float duration;
 
-        [Tooltip("A target, any GameObject since they all have a Transform")]
+        [Tooltip("A target, any GameObject since they all have a Transform, needed for all Transform-based tween types")]
         public Transform transform = null;
 
-        [Tooltip("A target, any GameObject that has a SpriteRenderer component")]
+        [Tooltip("A target, any GameObject that has a SpriteRenderer component; needed for SpriteRenderer Color tween type")]
         public SpriteRenderer spriteRenderer = null;
 
-        [Tooltip("A target, any GameObject that has a Text component")]
+        [Tooltip("A target, any GameObject that has a Text component; needed for Text Color tween type")]
         public Text text = null;
 
-        [Tooltip("The property that is being tweened")]
+        [Tooltip("The property that is being tweened; raw values don't use a target, you'll need to assign an event to Change to use it")]
         public TweenType tweenType;
 
         [Tooltip("Determines if you are supplying both source and dest, or if you're fetching either value from the object being tweened")]
@@ -759,7 +759,6 @@ namespace Spewnity
         TransformScaleLocal,
         SpriteRendererColor,
         TextColor,
-        MaterialColor,
         RawFloat,
         RawVector2,
         RawVector3,
@@ -817,111 +816,6 @@ namespace Spewnity
 
     //////////////////////////////////////////////////////////////////////////////// 
 
-    [CustomPropertyDrawer(typeof (TweenValue))]
-    public class TweenValuePropertyDrawer : PropertyDrawer
-    {
-        private float lastX;
-
-        public override void OnGUI(Rect pos, SerializedProperty prop, GUIContent label)
-        {
-            if (IsHidden(prop)) return;
-
-            TweenManager tm = (TweenManager) prop.serializedObject.targetObject;
-            Tween tween = tm[int.Parse(Regex.Match(prop.propertyPath, @"^tweenTemplates.Array.data\[(\d+)\]").Groups[1].Value)];
-            SerializedProperty value = prop.FindPropertyRelative("value");
-
-            EditorGUI.BeginProperty(pos, new GUIContent("Target"), prop);
-            int indentLevel = EditorGUI.indentLevel;
-            EditorGUI.indentLevel = 0;
-            lastX = 30;
-
-            AddLabel(pos, prop.displayName, 90f);
-            switch (tween.tweenType)
-            {
-                case TweenType.RawFloat:
-                    AddField(value, pos, "x", 100f, tween.frozenAxes.x, 35f, "value");
-                    break;
-
-                case TweenType.RawVector2:
-                    AddField(value, pos, "x", 90f, tween.frozenAxes.x, 10f);
-                    AddField(value, pos, "y", 90f, tween.frozenAxes.y, 10f);
-                    break;
-
-                case TweenType.TransformPositionLocal:
-                case TweenType.TransformPosition:
-                case TweenType.TransformRotationLocal:
-                case TweenType.TransformRotation:
-                case TweenType.TransformScaleLocal:
-                case TweenType.RawVector3:
-                    AddField(value, pos, "x", 65f, tween.frozenAxes.x, 10f);
-                    AddField(value, pos, "y", 65f, tween.frozenAxes.y, 10f);
-                    AddField(value, pos, "z", 65f, tween.frozenAxes.z, 10f);
-                    break;
-
-                case TweenType.SpriteRendererColor:
-                case TweenType.TextColor:
-                case TweenType.RawColor:
-                    AddField(value, pos, "x", 45f, tween.frozenAxes.x, 10f, "r");
-                    AddField(value, pos, "y", 45f, tween.frozenAxes.y, 10f, "g");
-                    AddField(value, pos, "z", 45f, tween.frozenAxes.z, 10f, "b");
-                    AddField(value, pos, "w", 45f, tween.frozenAxes.w, 10f, "a");
-                    break;
-
-                default: // Vector4
-                    AddField(value, pos, "x", 40f, tween.frozenAxes.x);
-                    AddField(value, pos, "y", 40f, tween.frozenAxes.y);
-                    AddField(value, pos, "z", 40f, tween.frozenAxes.z);
-                    AddField(value, pos, "w", 40f, tween.frozenAxes.w);
-                    break;
-            }
-
-            EditorGUI.indentLevel = indentLevel;
-            EditorGUI.EndProperty();
-        }
-        private void AddLabel(Rect pos, string propName, float width)
-        {
-            Rect fieldRect = new Rect(pos.x + lastX, pos.y, width, pos.height);
-            EditorGUI.LabelField(fieldRect, propName);
-            lastX += width;
-        }
-
-        private void AddField(SerializedProperty prop, Rect pos, string propName, float width, bool isDisabled,
-            float labelWidth = 10f, string altLabel = null)
-        {
-            GUI.enabled = !isDisabled;
-            string label = (altLabel == null ? propName : altLabel);
-            SerializedProperty fieldProp = prop.FindPropertyRelative(propName);
-            Rect fieldRect = new Rect(pos.x + lastX, pos.y, width, pos.height);
-            EditorGUI.LabelField(fieldRect, label);
-            fieldRect.x += labelWidth;
-            fieldRect.width = width - labelWidth;
-            EditorGUI.PropertyField(fieldRect, fieldProp, GUIContent.none);
-            lastX += width + 5;
-            GUI.enabled = true;
-        }
-
-        private bool IsHidden(SerializedProperty prop)
-        {
-            string tweenPath = prop.propertyPath.Substring(0, prop.propertyPath.LastIndexOf("."));
-            string rangeTypePath = tweenPath + ".rangeType";
-            SerializedProperty rangeTypeProp = prop.serializedObject.FindProperty(rangeTypePath);
-
-            RangeType rangeType = (RangeType) rangeTypeProp.enumValueIndex;
-            return (rangeType == RangeType.SourceToTarget && prop.name == "dest") ||
-                (rangeType == RangeType.TargetToDest && prop.name == "source") ||
-                (rangeType == RangeType.Dest && prop.name == "source") ||
-                rangeType == RangeType.Nothing;
-        }
-
-        public override float GetPropertyHeight(SerializedProperty prop, GUIContent label)
-        {
-            if (IsHidden(prop)) return -EditorGUIUtility.standardVerticalSpacing;
-            return EditorGUI.GetPropertyHeight(prop, label, false);
-        }
-    }
-
-    //////////////////////////////////////////////////////////////////////////////// 
-
     [CustomPropertyDrawer(typeof (Transform))]
     [CustomPropertyDrawer(typeof (SpriteRenderer))]
     [CustomPropertyDrawer(typeof (Text))]
@@ -973,6 +867,122 @@ namespace Spewnity
 
     //////////////////////////////////////////////////////////////////////////////// 
 
+    [CustomPropertyDrawer(typeof (TweenValue))]
+    public class TweenValuePropertyDrawer : PropertyDrawer
+    {
+        private float lastX;
+
+        public override void OnGUI(Rect pos, SerializedProperty prop, GUIContent label)
+        {
+            if (IsHidden(prop)) return;
+
+            TweenManager tm = (TweenManager) prop.serializedObject.targetObject;
+            Tween tween = tm[int.Parse(Regex.Match(prop.propertyPath, @"^tweenTemplates.Array.data\[(\d+)\]").Groups[1].Value)];
+            SerializedProperty value = prop.FindPropertyRelative("value");
+
+            EditorGUI.BeginProperty(pos, new GUIContent("Target"), prop);
+            int indentLevel = EditorGUI.indentLevel;
+            EditorGUI.indentLevel = 0;
+            lastX = 30f;
+            AddLabel(pos, prop.displayName, 90f);
+            lastX = (pos.width < 338f ? 120f : 120f + (pos.width - 338f) * 0.45f);
+            float adjustedWidth = pos.width - lastX;
+
+            switch (tween.tweenType)
+            {
+                case TweenType.RawFloat:
+                    adjustedWidth *= 0.5f;
+                    AddField(value, pos, "x", adjustedWidth, tween.frozenAxes.x, 35f, "value"); // 200f
+                    break;
+
+                case TweenType.RawVector2:
+                    adjustedWidth *= 0.45f;
+                    AddField(value, pos, "x", adjustedWidth, tween.frozenAxes.x, 10f);
+                    AddField(value, pos, "y", adjustedWidth, tween.frozenAxes.y, 10f);
+                    break;
+
+                case TweenType.TransformPositionLocal:
+                case TweenType.TransformPosition:
+                case TweenType.TransformRotationLocal:
+                case TweenType.TransformRotation:
+                case TweenType.TransformScaleLocal:
+                case TweenType.RawVector3:
+                    adjustedWidth *= 0.325f;
+                    AddField(value, pos, "x", adjustedWidth, tween.frozenAxes.x, 10f);
+                    AddField(value, pos, "y", adjustedWidth, tween.frozenAxes.y, 10f);
+                    AddField(value, pos, "z", adjustedWidth, tween.frozenAxes.z, 10f);
+                    break;
+
+                case TweenType.SpriteRendererColor:
+                case TweenType.TextColor:
+                case TweenType.RawColor:
+                    adjustedWidth *= 0.2f;
+                    AddField(value, pos, "x", adjustedWidth, tween.frozenAxes.x, 10f, "r");
+                    AddField(value, pos, "y", adjustedWidth, tween.frozenAxes.y, 10f, "g");
+                    AddField(value, pos, "z", adjustedWidth, tween.frozenAxes.z, 10f, "b");
+                    AddField(value, pos, "w", adjustedWidth, tween.frozenAxes.w, 10f, "a");
+
+                    Rect colorRect = new Rect(pos.x + lastX, pos.y, adjustedWidth, pos.height);
+                    value.vector4Value = (Vector4) EditorGUI.ColorField(colorRect, GUIContent.none,
+                        (Color) value.vector4Value, false, !tween.frozenAxes.w, false, null);
+                    break;
+
+                default: // Vector4
+                    adjustedWidth *= 0.25f;
+                    AddField(value, pos, "x", adjustedWidth, tween.frozenAxes.x);
+                    AddField(value, pos, "y", adjustedWidth, tween.frozenAxes.y);
+                    AddField(value, pos, "z", adjustedWidth, tween.frozenAxes.z);
+                    AddField(value, pos, "w", adjustedWidth, tween.frozenAxes.w);
+                    break;
+            }
+
+            EditorGUI.indentLevel = indentLevel;
+            EditorGUI.EndProperty();
+        }
+        private void AddLabel(Rect pos, string propName, float width)
+        {
+            Rect fieldRect = new Rect(pos.x + lastX, pos.y, width, pos.height);
+            EditorGUI.LabelField(fieldRect, propName);
+            lastX += width;
+        }
+
+        private void AddField(SerializedProperty prop, Rect pos, string propName, float width, bool isDisabled,
+            float labelWidth = 10f, string altLabel = null)
+        {
+            GUI.enabled = !isDisabled;
+            string label = (altLabel == null ? propName : altLabel);
+            SerializedProperty fieldProp = prop.FindPropertyRelative(propName);
+            Rect fieldRect = new Rect(pos.x + lastX, pos.y, width, pos.height);
+            EditorGUI.LabelField(fieldRect, label);
+            fieldRect.x += labelWidth;
+            fieldRect.width = width - labelWidth;
+            EditorGUI.PropertyField(fieldRect, fieldProp, GUIContent.none);
+            lastX += width + 5;
+            GUI.enabled = true;
+        }
+
+        private bool IsHidden(SerializedProperty prop)
+        {
+            string tweenPath = prop.propertyPath.Substring(0, prop.propertyPath.LastIndexOf("."));
+            string rangeTypePath = tweenPath + ".rangeType";
+            SerializedProperty rangeTypeProp = prop.serializedObject.FindProperty(rangeTypePath);
+
+            RangeType rangeType = (RangeType) rangeTypeProp.enumValueIndex;
+            return (rangeType == RangeType.SourceToTarget && prop.name == "dest") ||
+                (rangeType == RangeType.TargetToDest && prop.name == "source") ||
+                (rangeType == RangeType.Dest && prop.name == "source") ||
+                rangeType == RangeType.Nothing;
+        }
+
+        public override float GetPropertyHeight(SerializedProperty prop, GUIContent label)
+        {
+            if (IsHidden(prop)) return -EditorGUIUtility.standardVerticalSpacing;
+            return EditorGUI.GetPropertyHeight(prop, label, false);
+        }
+    }
+
+    //////////////////////////////////////////////////////////////////////////////// 
+
     [CustomPropertyDrawer(typeof (TweenFrozenAxes))]
     public class TweenFrozenAxesPropertyDrawer : PropertyDrawer
     {
@@ -986,18 +996,22 @@ namespace Spewnity
             EditorGUI.BeginProperty(pos, label, prop);
             int indentLevel = EditorGUI.indentLevel;
             EditorGUI.indentLevel = 0;
-            lastX = 30;
-
+            lastX = 30f;
             AddLabel(pos, prop.displayName, 90f);
+            lastX = (pos.width < 338f ? 120f : 120f + (pos.width - 338f) * 0.45f);
+            float adjustedWidth = pos.width - lastX;
+
             switch (tween.tweenType)
             {
                 case TweenType.RawFloat:
-                    AddField(prop, pos, "x", 100f, 35f, "value");
+                    adjustedWidth *= 0.5f;
+                    AddField(prop, pos, "x", adjustedWidth, 35f, "value");
                     break;
 
                 case TweenType.RawVector2:
-                    AddField(prop, pos, "x", 90f, 10f);
-                    AddField(prop, pos, "y", 90f, 10f);
+                    adjustedWidth *= 0.45f;
+                    AddField(prop, pos, "x", adjustedWidth, 10f);
+                    AddField(prop, pos, "y", adjustedWidth, 10f);
                     break;
 
                 case TweenType.TransformPositionLocal:
@@ -1006,25 +1020,28 @@ namespace Spewnity
                 case TweenType.TransformRotation:
                 case TweenType.TransformScaleLocal:
                 case TweenType.RawVector3:
-                    AddField(prop, pos, "x", 65f, 10f);
-                    AddField(prop, pos, "y", 65f, 10f);
-                    AddField(prop, pos, "z", 65f, 10f);
+                    adjustedWidth *= 0.325f;
+                    AddField(prop, pos, "x", adjustedWidth, 10f);
+                    AddField(prop, pos, "y", adjustedWidth, 10f);
+                    AddField(prop, pos, "z", adjustedWidth, 10f);
                     break;
 
                 case TweenType.SpriteRendererColor:
                 case TweenType.TextColor:
                 case TweenType.RawColor:
-                    AddField(prop, pos, "x", 45f, 10f, "r");
-                    AddField(prop, pos, "y", 45f, 10f, "g");
-                    AddField(prop, pos, "z", 45f, 10f, "b");
-                    AddField(prop, pos, "w", 45f, 10f, "a");
+                    adjustedWidth *= 0.2f;
+                    AddField(prop, pos, "x", adjustedWidth, 10f, "r");
+                    AddField(prop, pos, "y", adjustedWidth, 10f, "g");
+                    AddField(prop, pos, "z", adjustedWidth, 10f, "b");
+                    AddField(prop, pos, "w", adjustedWidth, 10f, "a");
                     break;
 
-                default: // Vector4
-                    AddField(prop, pos, "x", 40f);
-                    AddField(prop, pos, "y", 40f);
-                    AddField(prop, pos, "z", 40f);
-                    AddField(prop, pos, "w", 40f);
+                case TweenType.RawVector4:
+                    adjustedWidth *= 0.25f;
+                    AddField(prop, pos, "x", adjustedWidth);
+                    AddField(prop, pos, "y", adjustedWidth);
+                    AddField(prop, pos, "z", adjustedWidth);
+                    AddField(prop, pos, "w", adjustedWidth);
                     break;
             }
 
@@ -1050,6 +1067,18 @@ namespace Spewnity
             fieldRect.width = width - labelWidth;
             EditorGUI.PropertyField(fieldRect, fieldProp, GUIContent.none);
             lastX += width + 5;
+        }
+
+        public override float GetPropertyHeight(SerializedProperty prop, GUIContent label)
+        {
+            TweenManager tm = (TweenManager) prop.serializedObject.targetObject;
+            Tween tween = tm[int.Parse(Regex.Match(prop.propertyPath, @"^tweenTemplates.Array.data\[(\d+)\]").Groups[1].Value)];
+            if (tween.tweenType == TweenType.None || tween.tweenType == TweenType.RawFloat)
+            {
+                tween.frozenAxes = new TweenFrozenAxes(); // reset to zero, to ensure no hidden freezes
+                return -EditorGUIUtility.standardVerticalSpacing;
+            }
+            return EditorGUI.GetPropertyHeight(prop, label, false);
         }
     }
 #endif

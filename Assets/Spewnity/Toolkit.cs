@@ -345,10 +345,10 @@ namespace Spewnity
         /// Throws a NullReferenceException if this object is null, with an optional message 
         /// <example>Camera c = GetComponent&lt;Camera&gt;(); c.ThrowIfNull();</example>
         /// </summary>
-        public static void ThrowIfNull(this object o, string msg = "NullReferenceException")
+        public static void ThrowIfNull(this object o, string msg = "ArgumentNullException")
         {
             if (o == null || o.Equals(null))
-                throw new System.NullReferenceException(msg);
+                throw new UnityException(msg);
         }
 
         /// <summary>

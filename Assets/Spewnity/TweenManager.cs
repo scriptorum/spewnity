@@ -35,6 +35,9 @@ namespace Spewnity
 
         [Tooltip("If you have multiple TweenManagers, setting this to true ensures this TweenManager is assigned to TweenManager.instance")]
         public bool primaryInstance;
+        
+        [Tooltip("If false, any tween that lacks a target throws an error; if true, tweens lacking a target use THIS GameObject")]
+        public bool autoTarget = false;
 
         [Tooltip("A set of one or more persistant tweens, that can also be used as tween templates")]
         public List<Tween> tweenTemplates;
@@ -273,7 +276,7 @@ namespace Spewnity
                 {
                     // Tween has finished loop
                     if (tween.loopsRemaining != 0)
-                        tween.Activate(true);
+                        tween.Activate(this, true);
 
                     // Tween has finished all iterations
                     else tween.options.events.End.Invoke(tween);
@@ -294,7 +297,7 @@ namespace Spewnity
                 tweensToAdd.RemoveAt(0);
 
                 // Start it up
-                tween.Activate();
+                tween.Activate(this);
                 activeTweens.Add(tween);
                 if (tween.options.events != null) tween.options.events.Start.Invoke(tween);
                 ApplyTween(tween);
@@ -462,10 +465,18 @@ namespace Spewnity
         /// <summary>
         /// Called by Play() to prepare the Tween for updating.
         /// </summary>
-        public void Activate(bool reactivatingFromLoop = false)
+        public void Activate(TweenManager tm, bool reactivatingFromLoop = false)
         {
             if (duration <= 0)
                 throw new UnityException("Duration must be > 0");
+
+            // Supply default target if requested
+            if (this.target == null)
+            {
+                if (tm.autoTarget)
+                    this.target = tm.gameObject;
+                else throw new UnityException("Target for tween '" + name + "' is missing.");
+            }
 
             // Update caches for non-transform components
             this.spriteRenderer = target == null ? null : target.GetComponent<SpriteRenderer>();
@@ -582,7 +593,6 @@ namespace Spewnity
     {
         public override TweenValue? GetTargetValue(Tween tween)
         {
-            tween.target.ThrowIfNull("Target not assigned");
             if (options.local) return TweenValue.Vector3(tween.target.transform.localPosition);
             return TweenValue.Vector3(tween.target.transform.position);
         }
@@ -607,7 +617,6 @@ namespace Spewnity
     {
         public override TweenValue? GetTargetValue(Tween tween)
         {
-            tween.target.ThrowIfNull("Target not assigned");
             if (options.local) return TweenValue.Vector3(tween.target.transform.localEulerAngles);
             return TweenValue.Vector3(tween.target.transform.eulerAngles);
         }
@@ -632,7 +641,6 @@ namespace Spewnity
     {
         public override TweenValue? GetTargetValue(Tween tween)
         {
-            tween.target.ThrowIfNull("Target not assigned");
             return TweenValue.Vector3(tween.target.transform.localScale);
         }
         public override void Apply(Tween tween)
@@ -654,7 +662,6 @@ namespace Spewnity
     {
         public override TweenValue? GetTargetValue(Tween tween)
         {
-            tween.target.ThrowIfNull("Target not assigned");
             if (tween.spriteRenderer != null)
                 return TweenValue.Color(tween.spriteRenderer.color);
             else if (tween.text != null)

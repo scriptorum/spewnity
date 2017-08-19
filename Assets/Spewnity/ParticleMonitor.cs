@@ -5,6 +5,7 @@ using UnityEngine;
 using UnityEngine.Events;
 
 // TODO FIX: Some births aren't being caught. Seems to be an issue with the ParticleSystem. Bug reported.
+//  https://issuetracker.unity3d.com/issues/particlesystem-birth-subemitter-doesnt-always-fire-when-using-random-between-two-constants-lifetime
 namespace Spewnity
 {
     /// <summary>

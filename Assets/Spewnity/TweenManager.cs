@@ -35,7 +35,7 @@ namespace Spewnity
 
         [Tooltip("If you have multiple TweenManagers, setting this to true ensures this TweenManager is assigned to TweenManager.instance")]
         public bool primaryInstance;
-        
+
         [Tooltip("If false, any tween that lacks a target throws an error; if true, tweens lacking a target use THIS GameObject")]
         public bool autoTarget = false;
 
@@ -475,7 +475,8 @@ namespace Spewnity
             {
                 if (tm.autoTarget)
                     this.target = tm.gameObject;
-                else throw new UnityException("Target for tween '" + name + "' is missing.");
+                else if (position.enabled || rotation.enabled || scale.enabled || color.enabled)
+                    throw new UnityException("Target for tween '" + name + "' is missing.");
             }
 
             // Update caches for non-transform components

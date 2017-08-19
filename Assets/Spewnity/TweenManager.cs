@@ -14,32 +14,37 @@ using UnityEditorInternal;
 // TODO A Vec4 lerp is only needed for color, other TweenTypes will be more performant if you lerp just the parts you need, especially considering frozen axes
 // TODO Editor and PropertyDrawer work is such a drag - look into attributes and generic helper classes?
 // TODO Should Lerp be clamped for things like Colors?
-// TODO Allow tweens to specify subtweens with a delay schedule
-// TODO There are really only four tweenable properties for every tween - why not omit the properties array and have Position, Rotation, Scale, and Color with checkboxes next to them?
 // TODO Is it possible to clone a UnityEvent? It might not be necessary but I'd like to be able to clone the TweenEvents object properly.
+// TODO Disabled properties do not show their tooltips
 namespace Spewnity
 {
     /// <summary>
     /// Another tweening system.
     /// <para>You can specify persistant tweens in the inspector or ad-hoc ones through the API. Persistent tweens can be run 
     /// as defined with Play(string), or they can be used as templates: Clone() and modify the tween, and then Play(tween).</para>
-    /// <para>The tweens system supports 2D and 3D transform tweening, as well as color tweening on certain components.
+    /// <para>The tweens system supports transform tweening, color tweening on certain components, and restricting certain axes.
     /// Also, freely tween independent floats, vectors, and colors using the event system. Supports easing, ping-pong, 
     /// reverse, and relative tween values.</para>
     /// <para>Preview your tweens live, just by clicking the button in the inspector while playing.</para>
-    /// <para>Hook in events for tween start, change, and stop. Call Play() from Start/End to play tweens simultaneously 
-    /// or in a sequence. For the latter, you can also call PlayChain(), and for the former just call Play() repeatedly.</para>
+    /// <para>Hook in events for tween start, change, and stop. Use Compound Tweens to choreograph several tweens with 
+    /// different objects together.</para>
     /// </summary>
     public class TweenManager : MonoBehaviour
     {
         public static TweenManager instance;
-        [Tooltip("A set of one or more persistant tweens, that can also be used as tween templates")]
-        public List<Tween> tweenTemplates;
+
         [Tooltip("If you have multiple TweenManagers, setting this to true ensures this TweenManager is assigned to TweenManager.instance")]
         public bool primaryInstance;
 
-        private List<Tween> tweens = new List<Tween>();
+        [Tooltip("A set of one or more persistant tweens, that can also be used as tween templates")]
+        public List<Tween> tweenTemplates;
+
+        [Tooltip("Each TweenSchedule references a set of tweens that play at the scheduled time, in concert")]
+        public List<CompoundTween> compoundTweens;
+
+        private List<Tween> activeTweens = new List<Tween>();
         private List<Tween> tweensToAdd = new List<Tween>();
+        private List<CompoundTween> activeCompounds = new List<CompoundTween>();
 
         /// <summary>
         /// Starts tweening the object as defined by the pre-defined template tween.
@@ -70,14 +75,11 @@ namespace Spewnity
                     tween.name = newName;
             }
 
-#if !TWEEN_MANAGER_SKIP_DUPE_CHECK
-            if (tweens.Contains(tween) || tweensToAdd.Contains(tween))
-            {
-                Debug.LogError("Tween instance (" + tween.name + ") is already playing! Restarting tween.");
-                tweens.Remove(tween);
+            if (activeTweens.Contains(tween))
+                activeTweens.Remove(tween);
+
+            if (tweensToAdd.Contains(tween))
                 tweensToAdd.Remove(tween);
-            }
-#endif
 
             tweensToAdd.Add(tween);
             return tween;
@@ -91,7 +93,7 @@ namespace Spewnity
         /// <param name="tweenName">The unique name of the tween</param>
         public void Stop(string tweenName)
         {
-            foreach(List<Tween> list in new List<Tween>[] { tweens, tweensToAdd })
+            foreach(List<Tween> list in new List<Tween>[] { activeTweens, tweensToAdd })
             {
                 list.ForEach((t) => { if (t.name == tweenName) Stop(t); });
             }
@@ -104,7 +106,7 @@ namespace Spewnity
         /// <param name="tween">The tween instance</param>
         public void Stop(Tween tween)
         {
-            tweens.Remove(tween);
+            activeTweens.Remove(tween);
         }
 
         /// <summary>
@@ -112,7 +114,7 @@ namespace Spewnity
         /// </summary>
         public void StopAll()
         {
-            tweens.Clear();
+            activeTweens.Clear();
         }
 
         /// <summary>
@@ -123,7 +125,7 @@ namespace Spewnity
         /// <returns>True if the tween is playing now or immediately</returns>
         public bool IsPlaying(string tweenName)
         {
-            return tweens.Exists(tween => tween.name == tweenName) || tweensToAdd.Exists(tween => tween.name == tweenName);
+            return activeTweens.Exists(tween => tween.name == tweenName) || tweensToAdd.Exists(tween => tween.name == tweenName);
         }
 
         /// <summary>
@@ -133,7 +135,26 @@ namespace Spewnity
         /// <returns>True if the tween is playing now or immediately</returns>
         public bool IsPlaying(Tween tween)
         {
-            return tweens.Contains(tween) || tweensToAdd.Contains(tween);
+            return activeTweens.Contains(tween) || tweensToAdd.Contains(tween);
+        }
+
+        public CompoundTween GetCompound(string name)
+        {
+            CompoundTween compound = compoundTweens.Find(x => x.name == name);
+            if (compound == null)
+                throw new KeyNotFoundException("CompoundTween not found:" + name);
+            return compound;
+        }
+
+        public void PlayCompound(string name)
+        {
+            PlayCompound(GetCompound(name));
+        }
+
+        public void PlayCompound(CompoundTween compound)
+        {
+            compound.Activate(this);
+            activeCompounds.Add(compound);
         }
 
         /// <summary>
@@ -143,43 +164,9 @@ namespace Spewnity
         /// <returns>A tween which is playing now or immediately, or null if no such tween is found</returns>
         public Tween GetPlaying(string tweenName)
         {
-            Tween tween = tweens.Find(t => t.name == tweenName);
+            Tween tween = activeTweens.Find(t => t.name == tweenName);
             if (tween == null) tweensToAdd.Find(t => t.name == tweenName);
             return tween;
-        }
-
-        /// <summary>
-        ///  Plays a chain of template tweens, one after another.
-        /// <para>Makes a clone of each tween first</para>
-        /// </summary>
-        /// <param name="tweenNames">An array of template tween names</param>
-        public void PlayChain(params string[] tweenNames)
-        {
-            Tween[] tweensToChain = new Tween[tweenNames.Length];
-            for (int i = 0; i < tweenNames.Length; i++)
-                tweensToChain[i] = GetTemplate(tweenNames[i]).Clone();
-            PlayChain(tweensToChain);
-        }
-
-        /// <summary>
-        /// Plays a chain of tween instances, one after another.
-        /// <para>Will modify each tween to invoke Play on the next tween when end one ends</para>
-        /// </summary>
-        /// <param name="tweensToChain">An array of tweens</param>
-        public void PlayChain(params Tween[] tweensToChain)
-        {
-            if (tweensToChain.Length == 0)
-                return;
-
-            for (int i = 0; i < tweensToChain.Length - 1; i++)
-            {
-                Tween thisTween = tweensToChain[i];
-                Tween nextTween = tweensToChain[i + 1];
-                UnityAction<Tween> action = new UnityAction<Tween>(delegate { Play(nextTween); });
-                action += delegate { thisTween.options.events.End.RemoveListener(action); };
-                thisTween.options.events.End.AddListener(action);
-            }
-            Play(tweensToChain[0]);
         }
 
         /// <summary>
@@ -239,14 +226,25 @@ namespace Spewnity
         /// </summary>
         void Update()
         {
+            ProcessCompounds();
             ProcessActiveTweens();
             ProcessNewTweens();
+        }
+
+        public void ProcessCompounds()
+        {
+            for (int i = activeCompounds.Count - 1; i >= 0; i--)
+            {
+                CompoundTween compound = activeCompounds[i];
+                if (compound.Apply(this) == true)
+                    activeCompounds.RemoveAt(i);
+            }
         }
 
         public void ProcessActiveTweens()
         {
             // Process all active tweens
-            foreach(Tween tween in tweens)
+            foreach(Tween tween in activeTweens)
             {
                 // Tween loop has run its delay
                 if (tween.delayRemaining > 0)
@@ -283,7 +281,7 @@ namespace Spewnity
             }
 
             // Remove any inactive tweens from list
-            tweens.RemoveAll(t => t.loopsRemaining == 0);
+            activeTweens.RemoveAll(t => t.loopsRemaining == 0);
         }
 
         public void ProcessNewTweens()
@@ -297,7 +295,7 @@ namespace Spewnity
 
                 // Start it up
                 tween.Activate();
-                tweens.Add(tween);
+                activeTweens.Add(tween);
                 if (tween.options.events != null) tween.options.events.Start.Invoke(tween);
                 ApplyTween(tween);
             }
@@ -382,14 +380,23 @@ namespace Spewnity
         [Tooltip("A GameObject; if you are doing color/alpha tweening, this must contain a SpriteRenderer, Rendererer or Text")]
         public GameObject target;
 
+        [Tooltip("Adjusts the position of the transform")]
+        public TweenPropertyPosition position;
+
+        [Tooltip("Adjusts the rotation of the transform, in degrees")]
+        public TweenPropertyRotation rotation;
+
+        [Tooltip("Adjusts the scale of the transform; note that 1.0 is default size")]
+        public TweenPropertyScale scale;
+
+        [Tooltip("Adjusts the color of a SpriteRenderer, Renderer, or Text component attached to this GameObject")]
+        public TweenPropertyColor color;
+
+        [Tooltip("The value of the the tween after it is kicked off, or the last value assigned to the target after the tween finished")]
+        public TweenPropertyValue value;
+
         [Tooltip("Advanced Options")]
         public TweenOptions options;
-
-        public TweenPropertyPosition position;
-        public TweenPropertyRotation rotation;
-        public TweenPropertyScale scale;
-        public TweenPropertyColor color;
-        public TweenPropertyValue value;
 
         //////////////////////////////////////////////////////
 
@@ -425,10 +432,11 @@ namespace Spewnity
         /// /// </summary>
         /// <param name="tween">The tween instance to copy</param>
         /// <param name="includeEvents">If true, shares the events from the tween being copied; if false, starts with no events</param>
-        public Tween(Tween tween, bool includeEvents = false)
+        public Tween(Tween tween, GameObject go = null, bool includeEvents = false)
         {
-            TweenOptions options = tween.options.Clone(includeEvents);
-            Init(name, duration, target, position, rotation, scale, color, value, options);
+            TweenOptions newOptions = tween.options.Clone(includeEvents);
+            GameObject newTarget = (go == null ? tween.target : go);
+            Init(tween.name, tween.duration, newTarget, tween.position, tween.rotation, tween.scale, tween.color, tween.value, newOptions);
         }
 
         /// <summary>
@@ -448,7 +456,7 @@ namespace Spewnity
         /// <returns>A copy of the Tween with the target(s) replaced</returns>
         public Tween Clone(GameObject go = null, bool includeEvents = false)
         {
-            return new Tween(this, includeEvents);
+            return new Tween(this, go, includeEvents);
         }
 
         /// <summary>
@@ -877,6 +885,134 @@ namespace Spewnity
     //////////////////////////////////////////////////////////////////////////////// 
 
     [System.Serializable]
+    public class CompoundTween
+    {
+        [Tooltip("The name of this schedule; suitable for passing to PlayCompound()")]
+        public string name;
+
+        [Tooltip("One or more tasks, that consists of a tween to play and when to play it")]
+        public List<CompoundTweenTask> tasks = new List<CompoundTweenTask>();
+
+        public CompoundTween(string name, List<CompoundTweenTask> tasks = null)
+        {
+            this.name = name;
+            if (tasks != null)
+                this.tasks = tasks;
+        }
+
+        public CompoundTween(CompoundTween ct)
+        {
+            this.name = ct.name;
+            foreach(CompoundTweenTask task in tasks)
+            this.tasks.Add(task.Clone());
+        }
+
+        public CompoundTween Clone()
+        {
+            return new CompoundTween(this);
+        }
+        public void Activate(TweenManager tm)
+        {
+            foreach(CompoundTweenTask task in tasks)
+            task.Activate(tm);
+        }
+
+        public bool Apply(TweenManager tm)
+        {
+            bool complete = true;
+
+            foreach(CompoundTweenTask task in tasks)
+            if (task.Apply(tm) == false)
+                complete = false;
+
+            return complete;
+        }
+    }
+
+    [System.Serializable]
+    public class CompoundTweenTask
+    {
+        [Tooltip("The name of a template tween to play")]
+        public string template;
+
+        [Tooltip("Once the main tween plays, the amount to wait (in seconds) before playing this subtween; usually the first is set to 0")]
+        public float delay;
+
+        [System.NonSerialized]
+        public Tween tween; // A tween assigned dynamically
+
+        [HideInInspector]
+        public float timeRemaining;
+
+        [System.NonSerialized]
+        public bool active = false;
+
+        public CompoundTweenTask(CompoundTweenTask task, GameObject altTarget = null)
+        {
+            this.template = task.template;
+            this.delay = task.delay;
+            this.tween = tween == null ? null : tween.Clone(altTarget);
+        }
+
+        public CompoundTweenTask(CompoundTweenTask task, TweenManager tm, GameObject altTarget)
+        {
+            this.template = task.template;
+            this.delay = task.delay;
+            this.tween = tween == null ? tm.GetTemplate(this.template) : tween.Clone(altTarget);
+        }
+
+        public CompoundTweenTask Clone(GameObject altTarget = null)
+        {
+            return new CompoundTweenTask(this, altTarget);
+        }
+
+        public CompoundTweenTask Clone(TweenManager tm, GameObject altTarget)
+        {
+            return new CompoundTweenTask(this, tm, altTarget);
+        }
+
+        public CompoundTweenTask(string template, float delay)
+        {
+            this.template = template;
+            this.delay = delay;
+            this.tween = null;
+        }
+
+        public CompoundTweenTask(Tween tween, float delay)
+        {
+            tween.ThrowIfNull();
+            this.tween = tween;
+            this.template = tween.name;
+            this.delay = delay;
+        }
+
+        public void Activate(TweenManager tm)
+        {
+            if (this.tween == null)
+                this.tween = tm.GetTemplate(template);
+            this.timeRemaining = this.delay;
+            this.active = true;
+        }
+
+        public bool Apply(TweenManager tm)
+        {
+            if (!active)
+                return true;
+
+            this.timeRemaining -= Time.deltaTime;
+            if (this.timeRemaining > 0)
+                return false;
+
+            this.timeRemaining = 0;
+            tm.Play(this.tween);
+            active = false;
+            return true;
+        }
+    }
+
+    //////////////////////////////////////////////////////////////////////////////// 
+
+    [System.Serializable]
     public class TweenEvent : UnityEvent<Tween> { }
 
     ////////////////////////////////////////////////////////////////////////////////     
@@ -908,17 +1044,108 @@ namespace Spewnity
 
 #if UNITY_EDITOR
 
+    [CustomPropertyDrawer(typeof (CompoundTween))]
+    public class CompoundTweenPD : PropertyDrawer
+    {
+        public override void OnGUI(Rect pos, SerializedProperty prop, GUIContent label)
+        {
+            if (prop == null)
+                return;
+
+            EditorGUI.PropertyField(pos, prop, label, true);
+            if (prop.isExpanded)
+            {
+                GUI.enabled = Application.isPlaying;
+                float x = Helper.GetControlLeft(pos.width);
+                if (GUI.Button(new Rect(pos.x + x, pos.yMax - 25f, 100f, 20f),
+                        new GUIContent("Live Preview", "When application is running, press this to preview the compound tween")))
+                {
+                    TweenManager tm = (TweenManager) prop.serializedObject.targetObject;
+                    string name = prop.serializedObject.FindProperty(prop.propertyPath + ".name").stringValue;
+                    tm.StopAll();
+                    tm.PlayCompound(name);
+                }
+                GUI.enabled = true;
+            }
+        }
+
+        public override float GetPropertyHeight(SerializedProperty prop, GUIContent label)
+        {
+            float height = EditorGUI.GetPropertyHeight(prop);
+
+            if (prop.isExpanded)
+                height += 30f;
+
+            return height;
+        }
+    }
+
+    [CustomPropertyDrawer(typeof (CompoundTweenTask))]
+    public class CompoundTweenTaskPD : PropertyDrawer
+    {
+        public override void OnGUI(Rect pos, SerializedProperty prop, GUIContent label)
+        {
+            if (prop == null)
+                return;
+
+            EditorGUI.BeginProperty(pos, label, prop);
+            int indentLevel = EditorGUI.indentLevel;
+            EditorGUI.indentLevel = indentLevel - 2;
+            Helper.lastX = 30f;
+            Helper.AddLabel(pos, "Task", 90f);
+            EditorGUI.indentLevel = 0;
+            Helper.lastX = Helper.GetControlLeft(pos.width);
+            float width = pos.width - Helper.lastX;
+
+            TweenManager tm = (TweenManager) prop.serializedObject.targetObject;
+            SerializedProperty templateProp = prop.FindPropertyRelative("template");
+            string template = templateProp.stringValue;
+            List<string> values = new List<string>();
+            int selected = -1;
+            for (int i = 0; i < tm.tweenTemplates.Count; i++)
+            {
+                string name = tm.GetTemplateByIndex(i).name;
+                values.Add(name);
+                if (name == template)
+                    selected = i + 1;
+            }
+
+            string msg = "Select a template";
+            if (selected == -1)
+            {
+                if (!template.IsEmpty())
+                    msg = "Missing template";
+                selected = 0;
+            }
+            values.Insert(0, msg);
+
+            float delayWidth = pos.width > 320f ? width * 0.4f : width * 0.3f;
+            string delayLabel = pos.width > 320f ? "delay" : "d";
+
+            selected = Helper.AddPopup(values, selected, pos, width - delayWidth, false);
+            templateProp.stringValue = selected > 0 ? values[selected] : "";
+            Helper.AddField(prop, pos, "delay", delayWidth, false, delayLabel.Length > 1 ? 30f : 10f, delayLabel);
+
+            EditorGUI.indentLevel = indentLevel;
+            EditorGUI.EndProperty();
+        }
+    }
+
     [CustomPropertyDrawer(typeof (Tween))]
     public class TweenPD : PropertyDrawer
     {
         public override void OnGUI(Rect pos, SerializedProperty prop, GUIContent label)
         {
+            // Alternating background colors
+            int index = Helper.GetTweenIndex(prop);
+            EditorGUI.DrawRect(pos, new Color(0f, 0f, 0f, index % 2 == 0 ? 0.1f : 0f));
+
             EditorGUI.PropertyField(pos, prop, label, true);
             if (prop.isExpanded)
             {
-                float width = 80f;
                 GUI.enabled = Application.isPlaying;
-                if (GUI.Button(new Rect(pos.xMin + (pos.width - width) / 2, pos.yMax - 20f, width, 20f),
+                float x = Helper.GetControlLeft(pos.width);
+                if (GUI.Button(new Rect(pos.x + x, pos.yMax - 25f, 100f, 20f),
                         new GUIContent("Live Preview", "When application is running, press this to preview the tween")))
                 {
                     TweenManager tm = (TweenManager) prop.serializedObject.targetObject;
@@ -926,15 +1153,22 @@ namespace Spewnity
                     tm.Stop(name);
                     tm.Play(name);
                 }
+                GUI.enabled = true;
             }
-            GUI.enabled = true;
+
+            //     EditorGUI.Popup(new Rect(pos.xMin + (pos.width - 150f) / 2, pos.yMax - 40f, 150f, 20f),
+            //         0, new string[] { "hi", "there", "would you like to ride", "the bone train?" });
         }
 
         public override float GetPropertyHeight(SerializedProperty prop, GUIContent label)
         {
+            float height = EditorGUI.GetPropertyHeight(prop);
+            // height += EditorGUIUtility.singleLineHeight; // POPUP TEST 
+
             if (prop.isExpanded)
-                return EditorGUI.GetPropertyHeight(prop) + 25f;
-            return EditorGUI.GetPropertyHeight(prop);
+                height += 30f;
+
+            return height;
         }
     }
 
@@ -953,12 +1187,24 @@ namespace Spewnity
             if (tp == null)
                 return;
 
+            // A little bit of color to distinguish the sections
+            Color color = GUI.backgroundColor;
+            if (tp is TweenPropertyPosition)
+                GUI.backgroundColor = new Color(1f, .9f, .9f);
+            else if (tp is TweenPropertyRotation)
+                GUI.backgroundColor = new Color(.9f, 1f, .9f);
+            else if (tp is TweenPropertyScale)
+                GUI.backgroundColor = new Color(.9f, .9f, 1f);
+            else if (tp is TweenPropertyColor)
+                GUI.backgroundColor = new Color(1f, 1f, .9f);
+            else GUI.backgroundColor = new Color(.9f, 1f, 1f);
+
             if (!tp.enabled)
                 EditorGUI.LabelField(pos, prop.displayName);
 
             int indentLevel = EditorGUI.indentLevel;
             EditorGUI.indentLevel = 0;
-            float x = (pos.width < 338f ? 120f : (pos.width - 338f) * 0.45f + 120f);
+            float x = Helper.GetControlLeft(pos.width);
             Rect r = new Rect(pos.x + x, pos.y, pos.width - x, EditorGUIUtility.singleLineHeight);
             bool wasEnabled = tp.enabled;
             tp.enabled = EditorGUI.ToggleLeft(r, "Enabled", tp.enabled);
@@ -969,6 +1215,8 @@ namespace Spewnity
 
             if (tp.enabled)
                 EditorGUI.PropertyField(pos, prop, new GUIContent(prop.displayName), true);
+
+            GUI.backgroundColor = color;
         }
 
         public override float GetPropertyHeight(SerializedProperty prop, GUIContent label)
@@ -1000,7 +1248,7 @@ namespace Spewnity
             Helper.lastX = 30f;
             Helper.AddLabel(pos, prop.displayName, 90f);
             EditorGUI.indentLevel = 0;
-            Helper.lastX = (pos.width < 338f ? 120f : (pos.width - 338f) * 0.45f + 120f);
+            Helper.lastX = Helper.GetControlLeft(pos.width);
             float adjustedWidth = pos.width - Helper.lastX;
             tp.AddValueFields(value, pos, adjustedWidth, true);
             EditorGUI.indentLevel = indentLevel;
@@ -1047,7 +1295,7 @@ namespace Spewnity
             Helper.lastX = 30f;
             Helper.AddLabel(pos, pos.width > 360 ? "Frozen Axes" : "Frozen", 90f);
             EditorGUI.indentLevel = 0;
-            Helper.lastX = (pos.width < 338f ? 120f : (pos.width - 338f) * 0.45f + 120f);
+            Helper.lastX = Helper.GetControlLeft(pos.width);
             float adjustedWidth = pos.width - Helper.lastX;
             tp.AddValueFields(prop, pos, adjustedWidth);
             EditorGUI.indentLevel = indentLevel;
@@ -1074,11 +1322,17 @@ namespace Spewnity
     {
         public static float lastX = 0;
 
+        public static int GetTweenIndex(SerializedProperty prop)
+        {
+            TweenManager tm = (TweenManager) prop.serializedObject.targetObject;
+            Match match = Regex.Match(prop.propertyPath, @"^tweenTemplates\.Array\.data\[(\d+)\]");
+            return int.Parse(match.Groups[1].Value);
+        }
+
         public static Tween GetTween(SerializedProperty prop)
         {
             TweenManager tm = (TweenManager) prop.serializedObject.targetObject;
-            Match match = Regex.Match(prop.propertyPath, @"^tweenTemplates\.Array\.data\[(\d+)\]\.(\w+)\.");
-            return tm.GetTemplateByIndex(int.Parse(match.Groups[1].Value));
+            return tm.GetTemplateByIndex(GetTweenIndex(prop));
         }
 
         public static TweenProperty GetTweenProperty(SerializedProperty prop)
@@ -1125,6 +1379,21 @@ namespace Spewnity
             Helper.lastX += width;
             GUI.enabled = true;
         }
+
+        public static int AddPopup(List<string> values, int selected, Rect pos, float width, bool isDisabled = false)
+        {
+            Rect fieldRect = new Rect(pos.x + Helper.lastX, pos.y, width - 5f, pos.height);
+            Helper.lastX += width;
+            return EditorGUI.Popup(fieldRect, selected, values.ToArray());
+        }
+
+        public static float GetControlLeft(float propertyWidth)
+        {
+            return (propertyWidth < 338f ? 120f : (propertyWidth - 338f) * 0.45f + 120f);
+        }
     }
+
+    // https://issuetracker.unity3d.com/issues/propertydrawer-editorgui-dot-drawrect-disappears-when-unfocused
+    [CanEditMultipleObjects][CustomEditor(typeof (MonoBehaviour), true)] public class MonoBehaviour_DummyCustomEditor : Editor { }
 #endif
 }

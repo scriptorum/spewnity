@@ -178,6 +178,22 @@ namespace Spewnity
         }
 
         /// <summary>
+        /// Integer based Max
+        /// </summary>
+        public static int Max(this int val1, int val2)
+        {
+            return val1 > val2 ? val1 : val2;
+        }
+
+        /// <summary>
+        /// Integer based Min
+        /// </summary>
+        public static int Min(this int val1, int val2)
+        {
+            return val1 < val2 ? val1 : val2;
+        }
+
+        /// <summary>
         /// Returns the absolute path to the Transform
         /// </summary>
         public static string GetFullPath(this Transform o)

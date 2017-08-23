@@ -3,6 +3,11 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 
+#if UNITY_EDITOR
+using System.Text.RegularExpressions;
+using UnityEditor;
+#endif
+
 // TODO Create an editor interface for viewing and setting counts
 namespace Spewnity
 {
@@ -14,6 +19,7 @@ namespace Spewnity
     {
         public bool logCountsNow = false;
         public CallbackHelperEvents callbackEvents;
+        public List<CallbackHelperButtonEvent> buttonEvents;
 
         private const string DEFAULT_NAME = "default";
         private Dictionary<string, int> counter;
@@ -21,18 +27,18 @@ namespace Spewnity
         void Awake()
         {
             ResetAllCounts();
-            callbackEvents.OnAwake.Invoke();
+            callbackEvents.Awake.Invoke();
         }
 
         void Start()
         {
-            callbackEvents.OnStart.Invoke();
+            callbackEvents.Start.Invoke();
         }
 
 #if UNITY_EDITOR
         void OnValidate()
         {
-            callbackEvents.OnValidate.Invoke();
+            callbackEvents.Validate.Invoke();
 
             if (logCountsNow)
             {
@@ -44,7 +50,7 @@ namespace Spewnity
 
         void Update()
         {
-            callbackEvents.OnUpdate.Invoke();
+            callbackEvents.Update.Invoke();
         }
 
         /// <summary>
@@ -132,9 +138,39 @@ namespace Spewnity
     [System.Serializable]
     public struct CallbackHelperEvents
     {
-        public UnityEvent OnAwake;
-        public UnityEvent OnStart;
-        public UnityEvent OnUpdate;
-        public UnityEvent OnValidate;
+        public UnityEvent Awake;
+        public UnityEvent Start;
+        public UnityEvent Update;
+        public UnityEvent Validate;
     }
+
+    [System.Serializable]
+    public class CallbackHelperButtonEvent
+    {
+        public UnityEvent Click;
+    }
+
+#if UNITY_EDITOR
+    [CustomPropertyDrawer(typeof (CallbackHelperButtonEvent))]
+    public class CallbackHelperButtonEventPD : PropertyDrawer
+    {
+        public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
+        {
+            EditorGUI.PropertyField(position, property, label, true);
+
+            if (GUI.Button(new Rect(position.width / 2f - 70f, position.yMax - 20f, 140f, EditorGUIUtility.singleLineHeight), "Activate"))
+            {
+                CallbackHelper helper = (CallbackHelper) property.serializedObject.targetObject;
+                Match match = Regex.Match(property.propertyPath, @"\[(\d+)\]$");
+                CallbackHelperButtonEvent buttonEvent = helper.buttonEvents[int.Parse(match.Groups[1].Value)];
+                buttonEvent.Click.Invoke();
+            }
+        }
+
+        public override float GetPropertyHeight(SerializedProperty property, GUIContent label)
+        {
+            return EditorGUI.GetPropertyHeight(property, label, true) + 20f;
+        }
+    }
+#endif
 }

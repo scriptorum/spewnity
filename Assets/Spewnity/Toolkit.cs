@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using UnityEngine;
 
 // TODO Add StartCoroutine versions of the Lerps? I'll have to extend them off MonoBehaviour then.
@@ -231,6 +232,16 @@ namespace Spewnity
             return (Random.value >= 0.5f);
         }
 
+        public static Color RandomColor(bool includeAlpha = false)
+        {
+            return new Color(
+                Random.Range(0f, 1f),
+                Random.Range(0f, 1f),
+                Random.Range(0f, 1f),
+                includeAlpha ? Random.Range(0f, 1f) : 1
+            );
+        }
+
         /// <summary>
         /// Swaps two values, just awful, I hate myself for writing it 
         /// </summary>
@@ -250,7 +261,7 @@ namespace Spewnity
             foreach(T t in iList)
             {
                 if (ret != "")
-                    ret += ",";
+                    ret += delim;
                 ret += t.ToString();
             }
             return ret;
@@ -263,7 +274,16 @@ namespace Spewnity
         /// <returns>Returns the string with the first letter capitalized.</returns>
         public static string ToInitCase(this string str)
         {
+            if (str.IsEmpty())
+                return str;
             return str.Substring(0, 1).ToUpper() + str.Substring(1);
+        }
+
+        public static string ToTitleCase(this string str)
+        {
+            string result = "";
+            foreach(string part in Regex.Split(str, @"\s*(\S+)(\s*)")) result += part.ToInitCase();
+            return result;
         }
 
         /// <summary>

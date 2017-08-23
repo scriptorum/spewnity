@@ -1397,7 +1397,7 @@ namespace Spewnity
 
         public static float GetControlLeft(float propertyWidth)
         {
-            return (propertyWidth < 338f ? 120f : (propertyWidth - 338f) * 0.45f + 120f);
+            return (propertyWidth < 338f ? EditorGUIUtility.labelWidth : (propertyWidth - 338f) * 0.45f + EditorGUIUtility.labelWidth);
         }
     }
 

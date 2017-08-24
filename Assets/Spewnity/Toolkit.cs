@@ -124,24 +124,17 @@ namespace Spewnity
         }
 
         /// <summary>
-        /// Snaps the XY component of a Vector3 to a 45 degree angle
+        /// Snaps an Vector3 to a specified angle
         /// </summary>
-        /// <param name="v3">Vector3</param>
+        /// <param name="vec">Vector3</param>
         /// <param name="snapAngle">The angle to snap, in degrees</param>
-        /// <returns>The angle, rounded to some multiple of 45, in degrees</returns>
-        public static Vector3 Snap45(this Vector3 v3, float snapAngle)
+        /// <returns>A Vector3, rounded to the nearest multiple of the snap angle, in degrees</returns>
+        public static Vector3 SnapTo(this Vector3 vec, float snapAngle)
         {
-            float angle = Vector3.Angle(v3, Vector3.up);
-            if (angle < snapAngle / 2.0f) // Cannot do cross product 
-                return Vector3.up * v3.magnitude; //   with angles 0 & 180
-            if (angle > 180.0f - snapAngle / 2.0f) return Vector3.down * v3.magnitude;
-
-            float t = Mathf.Round(angle / snapAngle);
-            float deltaAngle = (t * snapAngle) - angle;
-
-            Vector3 axis = Vector3.Cross(Vector3.up, v3);
-            Quaternion q = Quaternion.AngleAxis(deltaAngle, axis);
-            return q * v3;
+            float x = Mathf.Round(vec.x / snapAngle) * snapAngle;
+            float y = Mathf.Round(vec.y / snapAngle) * snapAngle;
+            float z = Mathf.Round(vec.z / snapAngle) * snapAngle;
+            return new Vector3(x, y, z);
         }
 
         /// <summary>
@@ -257,6 +250,9 @@ namespace Spewnity
         /// </summary>
         public static string Join<T>(this IList<T> iList, string delim = ",")
         {
+            if (iList == null || delim == null)
+                throw new System.ArgumentException();
+
             string ret = "";
             foreach(T t in iList)
             {
@@ -271,7 +267,7 @@ namespace Spewnity
         /// Capitalizes the first character of the string.
         /// </summary>
         /// <param name="str">The string to capitalize</param>
-        /// <returns>Returns the string with the first letter capitalized.</returns>
+        /// <returns>The changed string</returns>
         public static string ToInitCase(this string str)
         {
             if (str.IsEmpty())
@@ -279,10 +275,17 @@ namespace Spewnity
             return str.Substring(0, 1).ToUpper() + str.Substring(1);
         }
 
+        /// <summary>
+        /// Capitalizes each word of the string.
+        /// </summary>
+        /// <param name="str">The string to title case</param>
+        /// <returns>The changed string</returns>
         public static string ToTitleCase(this string str)
         {
+            if (str.IsEmpty())
+                return str;
             string result = "";
-            foreach(string part in Regex.Split(str, @"\s*(\S+)(\s*)")) result += part.ToInitCase();
+            foreach(string part in Regex.Split(str, @"([A-Za-z0-9]+)")) result += part.ToInitCase();
             return result;
         }
 

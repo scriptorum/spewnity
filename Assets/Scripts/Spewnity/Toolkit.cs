@@ -225,6 +225,11 @@ namespace Spewnity
             return (Random.value >= 0.5f);
         }
 
+        /// <summary>
+        /// Returns a random color
+        /// </summary>
+        /// <param name="includeAlpha">If true, alpha is also randomized; otherwise alpha is 1.0 (opaque)</param>
+        /// <returns>the color</returns>
         public static Color RandomColor(bool includeAlpha = false)
         {
             return new Color(
@@ -299,18 +304,19 @@ namespace Spewnity
 
         /// <summary>
         /// Returns the named child object of the Transform.
-        /// <para>Throws an assert if not found</para>
+        /// <para>Throws an ArgumentException if not found</para>
         /// </summary>
         public static Transform GetChild(this Transform tform, string name)
         {
             Transform child = tform.Find(name);
-            Debug.Assert(child != null, "Could not find child " + name + " under " + tform.name);
+            if (name == null || child == null)
+                throw new System.ArgumentException("Could not find child " + name + " under " + tform.name);
             return child;
         }
 
         /// <summary>
         /// Returns the named child object of the GameObject.
-        /// <para>Throws an assert if not found</para>
+        /// <para>Throws an ArgumentException if not found</para>
         /// </summary>
         public static GameObject GetChild(this GameObject go, string name)
         {
@@ -400,8 +406,9 @@ namespace Spewnity
         /// <returns>The instantiated object</returns>
         public static GameObject CreateChild(this GameObject prefab, Transform parent, Vector3? position = null)
         {
-            return GameObject.Instantiate(prefab, (position == null ? Vector3.zero : (Vector3) position),
-                Quaternion.identity, parent);
+            GameObject go = GameObject.Instantiate(prefab, parent);
+            go.transform.localPosition = (position == null ? Vector3.zero : (Vector3) position);
+            return go;
         }
 
         /// <summary>

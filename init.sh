@@ -1,7 +1,6 @@
 #/bin/bash
 if [[ $1 == "" ]]; then
-	echo Copies Spewnity Assets and sets up a default set of asset folders in the folder specified
-	echo Will overwrite Assets/Spewnity, Assets/Editor, Assets/Shaders, and .gitignore!!!!
+	echo Copies Spewnity Assets and sets up a default structure of asset folders in the unity project folder specified
 	echo Usage: init.sh path-to-unity-folder
 	exit
 fi
@@ -22,19 +21,10 @@ if [[ ! -d "$path" ]]; then
 	badFolder $path
 fi
 
-echo Copying Spewnity
 dir=`dirname $0`
-cp -rf "${dir}/Assets/"* $path
 
 echo Copying gitignore
 cp "${dir}/.gitignore" $1
 
-echo Creating common folders
-mkdir -p "${dir}/Assets/Scenes/"
-mkdir -p "${dir}/Assets/Scripts/"
-mkdir -p "${dir}/Assets/Materials/"
-mkdir -p "${dir}/Assets/Art/"
-mkdir -p "${dir}/Assets/Audio/"
-mkdir -p "${dir}/Assets/Prefabs/"
-mkdir -p "${dir}/Assets/Fonts/"
-mkdir -p "${dir}/Raw/AudioRecs"
+echo Copying Assets
+cp -r "$dir/Assets/"* "$1/Assets/"

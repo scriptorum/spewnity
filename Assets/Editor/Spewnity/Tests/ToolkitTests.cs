@@ -1,15 +1,122 @@
 ﻿using System.Collections;
+using System.Collections.Generic;
 using NUnit.Framework;
 using Spewnity;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.TestTools;
 
-// TODO The four Lerp coroutines
-// TODO The GameObject/Transform functions: Create CreateChild GetChild GetAllObjects GetFullPath GetFullPath GetComponentOf
-//      GetChild DestroyChildren DestroyChildren DestroyChildrenImmediately
+// TODO The four Lerp coroutines, DestroyChildren
 public class ToolkitTests
 {
+    [UnityTest]
+    public IEnumerator TestDestroyChildrenImmediately()
+    {
+        GameObject a = new GameObject("a");
+        GameObject b = new GameObject("b");
+        GameObject c = new GameObject("c");
+        b.transform.parent = a.transform;
+        c.transform.parent = a.transform;
+
+        yield return null;
+        Assert.AreEqual(2, a.transform.childCount);
+
+        a.transform.DestroyChildrenImmediately();
+        Assert.AreEqual(0, a.transform.childCount);
+    }
+
+    [Test]
+    public void TestGetComponentOf()
+    {
+        GameObject a = new GameObject("a");
+        GameObject b = new GameObject("b");
+        b.transform.parent = a.transform;
+        b.AddComponent<Foo>();
+        Assert.IsNotNull(Toolkit.GetComponentOf<Foo>("/a/b"));
+        Assert.AreEqual(25, (Toolkit.GetComponentOf<Foo>("/a/b")).value);
+    }
+
+    [Test]
+    public void TestGetAllObjects()
+    {
+        List<GameObject> list = Toolkit.GetAllObjects();
+        int initialCount = list.Count;
+
+        GameObject a = new GameObject("a");
+        GameObject b = new GameObject("b");
+        b.transform.parent = a.transform;
+        GameObject c = new GameObject("c");
+
+        list = Toolkit.GetAllObjects();
+        Assert.AreEqual(3 + initialCount, list.Count);
+        Assert.Contains(a, list);
+        Assert.Contains(b, list);
+        Assert.Contains(c, list);
+    }
+
+    [Test]
+    public void TestGetChild()
+    {
+        GameObject a = new GameObject("a");
+        GameObject b = new GameObject("b");
+        b.transform.parent = a.transform;
+        Assert.AreEqual(b, a.GetChild("b"));
+        Assert.AreEqual(b.transform, a.transform.GetChild("b"));
+        Assert.Throws(typeof (System.ArgumentException), () => a.transform.GetChild("c"));
+        Assert.Throws(typeof (System.ArgumentException), () => a.transform.GetChild(null));
+    }
+
+    [Test]
+    public void TestCreateChild()
+    {
+        GameObject root = new GameObject("root");
+        root.transform.position = new Vector3(10, 5, 1);
+        GameObject prefab = new GameObject("prefab");
+        GameObject o1 = prefab.CreateChild(root.transform);
+        Assert.AreEqual(root.transform, o1.transform.parent);
+        Assert.AreEqual(Vector3.zero, o1.transform.localPosition);
+        Assert.AreEqual(10, o1.transform.position.x);
+        Assert.AreEqual(5, o1.transform.position.y);
+        Assert.AreEqual(1, o1.transform.position.z);
+        GameObject o2 = prefab.CreateChild(root.transform, new Vector3(1, 1, 1));
+        Assert.AreEqual(11, o2.transform.position.x);
+        Assert.AreEqual(6, o2.transform.position.y);
+        Assert.AreEqual(2, o2.transform.position.z);
+    }
+
+    [Test]
+    public void TestCreate()
+    {
+        GameObject root = new GameObject("root");
+        GameObject prefab = new GameObject("prefab");
+        GameObject o1 = prefab.Create(new Vector3(5, 10, 0));
+        Assert.AreEqual(5, o1.transform.position.x);
+        Assert.AreEqual(10, o1.transform.position.y);
+        Assert.AreEqual(0, o1.transform.position.z);
+        Assert.IsNull(o1.transform.parent);
+        GameObject o2 = prefab.Create(new Vector3(8, 12, 1), root.transform);
+        Assert.AreEqual(8, o2.transform.position.x);
+        Assert.AreEqual(12, o2.transform.position.y);
+        Assert.AreEqual(1, o2.transform.position.z);
+        Assert.AreEqual(root.transform, o2.transform.parent);
+    }
+
+    [Test]
+    public void TestGetFullPath()
+    {
+        GameObject a = new GameObject("a");
+        GameObject b = new GameObject("b");
+        b.transform.parent = a.transform;
+        GameObject c = new GameObject("c");
+        c.transform.parent = b.transform;
+        Assert.AreEqual("/a", a.GetFullPath());
+        Assert.AreEqual("/a/b", b.GetFullPath());
+        Assert.AreEqual("/a/b/c", c.GetFullPath());
+        Assert.AreEqual("/a", a.transform.GetFullPath());
+        Assert.AreEqual("/a/b", b.transform.GetFullPath());
+        Assert.AreEqual("/a/b/c", c.transform.GetFullPath());
+    }
+
     [Test]
     public void TestToolkitAbs()
     {
@@ -230,4 +337,6 @@ public class ToolkitTests
         Assert.AreEqual(210, snap30.y);
         Assert.AreEqual(90, snap30.z);
     }
+
+    internal class Foo : MonoBehaviour { public int value = 25; }
 }

@@ -13,13 +13,21 @@ namespace Spewnity
 {
     public class ObjectPooler : MonoBehaviour
     {
+        /// <summary>
+        /// Returns the sole or primary instance of ObjectPooler. See primaryInstance.
+        /// </summary>
         public static ObjectPooler instance;
 
+        [Reposition("name", "prefab")]
+        [Tooltip("All of the GameObjectPools managed by the ObjectPooler")]
+        public List<GameObjectPool> pools;
+        
+        [Tooltip("One ObjectPooler is assigned to ObjectPooler.instance; if true (and this is the only ObjectPooler so marked) this will be the instance")]
         public bool primaryInstance;
 
-        [Reposition("name", "prefab")]
-        public List<GameObjectPool> pools;
-
+        /// <summary>
+        /// General awakey stuff. Maintains the static instance, populates the pools with their minimums.
+        /// </summary>
         void Awake()
         {
             if (primaryInstance)
@@ -31,7 +39,9 @@ namespace Spewnity
             else if (instance == null)
                 instance = this;
 
-            foreach(GameObjectPool p in pools) p.Init(this.transform);
+            // Spawn the minimum number of objects specified
+            foreach (GameObjectPool p in pools)
+                p.Populate();
         }
 
         /// <summary>
@@ -76,23 +86,69 @@ namespace Spewnity
         {
             GetPool(poolName).Release(go);
         }
+
+        /// <summary>
+        /// Releases all in-use GameObjects from ALL pools.
+        /// </summary>
+        public void ReleaseAll()
+        {
+            foreach (GameObjectPool p in pools)
+                p.ReleaseAll();
+        }
+
+        /// <summary>
+        /// Removes ALL GameObjects from ALL pools, whether they are in-use or otherwise available.
+        /// </summary>
+        public void Clear()
+        {
+            foreach (GameObjectPool p in pools)
+                p.Clear();
+        }
+
+        /// <summary>
+        /// Provides an uninitialized GameObject with default settings.
+        /// </summary>
+        void OnValidate()
+        {
+            foreach (GameObjectPool p in pools)
+            {
+                if (!p.initialized)
+                {
+                    p.minSize = 0;
+                    p.maxSize = -1;
+                    p.growRate = 1;
+                    p.initialized = true;
+                    p.parent = this.transform;
+                }
+            }
+        }
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// <summary>
+    /// A GameObjectPool can be used directly by your class, or through an ObjectPooler.
+    /// <para>See also ObjectPool<T> for general information on pool mechanics.</para>
+    /// </summary>
     [System.Serializable]
     public class GameObjectPool : ObjectPool<GameObject>
     {
+        [Tooltip("The name of the pool; used to name newly created GameObjects; also used by Object Pooler to reference this pool")]
         public string name;
-        public GameObject prefab;
-        public PoolStatus poolStatus;
-        public PoolEvents events;
-        private Transform autoParent;
 
-        public void Init(Transform autoParent)
-        {
-            this.autoParent = autoParent;
-            base.Init();
-        }
+        [Tooltip("The prefab GameObject that all newly created instances will be instantiated from")]
+        public GameObject prefab;
+
+        [Tooltip("The parent of returned GameObjects; if null, GameObjects are parented by root")]
+        public Transform parent;
+
+        [Tooltip("Displays the status of the pool objects in the inspector")]
+        public PoolStatus poolStatus;
+
+        [Tooltip("Events! We all love events!")]
+        public PoolEvents events;
+        
+        [HideInInspector]
+        public bool initialized; // Used by ObjectPooler
 
         /// <summary>
         /// Instantiates a new GameObject for the pool
@@ -103,21 +159,29 @@ namespace Spewnity
                 throw new UnityException("Missing prefab for pool '" + name + "'");
             GameObject go = GameObject.Instantiate(prefab);
             go.name = name + "#" + (Size + 1);
-            go.transform.parent = autoParent;
             go.SetActive(false);
+            go.transform.SetParent(parent, false);
             events.Create.Invoke(go);
             return go;
         }
 
+        /// <summary>
+        /// GameObject-specific preparations before returning a usable GameObject.
+        /// </summary>
+        /// <param name="go">The GameObject being returned</param>
         protected override void Prepare(GameObject go)
         {
             go.SetActive(true);
             events.Prepare.Invoke(go);
         }
 
+        /// <summary>
+        /// GameObject-speficic object recycling, when a GameObject is released from use.
+        /// </summary>
+        /// <param name="go">The GameObject being recycled</param>
         protected override void Recycle(GameObject go)
         {
-            go.transform.parent = autoParent;
+            go.transform.SetParent(parent, false);
             go.SetActive(false);
             events.Recycle.Invoke(go);
         }
@@ -142,9 +206,9 @@ namespace Spewnity
     /// Just a dummy object for displaying the pool's available/used status in the inspector
     /// </summary>
     [System.Serializable]
-    public class PoolStatus
+    public struct PoolStatus
     {
-        public string who_you_calling_a_dummy;
+        public int dummy;
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -152,14 +216,19 @@ namespace Spewnity
     public class PoolEvent : UnityEvent<GameObject> { }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// <summary>
+    /// A generic object pool for any kind of object.
+    /// <para>Use TryGet to retrieve an item from the pool, and Release to return it. TryGet returns null if no object is available.</para>
+    /// <para>Use Get to ensure you retrieve an item from the pool; if there are none free, the oldest object will be repurposed.</para>
+    /// </summary>
     [System.Serializable]
     public class ObjectPool<T> where T : class
     {
         [Tooltip("The number of objects to create when the pool is created")]
         public int minSize = 5;
 
-        [Tooltip("The maximum number of objects in the pool; 0 means unlimited")]
-        public int maxSize = 32;
+        [Tooltip("The maximum number of objects in the pool; -1 means unlimited, 0 caps any further growth")]
+        public int maxSize = UNLIMITED;
 
         [Tooltip("The number of objects to create when any objects are created")]
         public int growRate = 5;
@@ -172,38 +241,47 @@ namespace Spewnity
         [Tooltip("The objects from the pool that are busy and waiting to be released")]
         public List<T> busy = new List<T>();
 
+        [Tooltip("If the maxSize is unlimited, there is no limit to the total number that can be created")]
+        public const int UNLIMITED = -1;
+
+        [Tooltip("If the maxSize is capped, no more objects will be created")]
+        public const int CAPPED = 0;
+
+        /// <returns>The total number of created objects, whether in-use or not</returns>
         public int Size { get { return available.Count + busy.Count; } }
 
-        /// <summary>
-        /// Constructor without parameters. Creates a new empty pool.
-        /// <para>When using this constructor, you must call Init() to initialize the pool</para>
-        /// </summary>
         public ObjectPool() { }
 
         /// <summary>
-        /// Constructor with parameters. Creates a new pool at the minSize specified.
+        /// Constructor with parameters.
         /// </summary>
         /// <param name="min">The minimum size of the pool</param>
-        /// <param name="max">The maximum size of the pool; a size of 0 means unlimited</param>
+        /// <param name="max">The maximum size of the pool; a size of -1 means unlimited, a size of 0 disables all pool growth</param>
         /// <param name="grow">The rate to grow the pool when additional objects are needed</param>
-        public ObjectPool(int min, int max, int grow)
+        /// <param name="populateNow">If true, grows the pool to its minimum size; otherwise call Populate() to do this</param>
+        public ObjectPool(int min, int max, int grow, bool populateNow = false)
         {
             this.minSize = min;
             this.maxSize = max;
             this.growRate = grow;
-            Init();
+
+            if (populateNow)
+                Populate();
         }
 
         /// <summary>
-        /// Initializes the pool to minimum size; this must be called when using ObjectPool with the parameterless constructor
+        /// Populates the pool with the minimum size.
         /// </summary>
-        public void Init()
+        public void Populate()
         {
             Debug.Assert(growRate > 0);
             Debug.Assert(minSize >= 0);
-            Debug.Assert(maxSize == 0 || minSize <= maxSize);
+            Debug.Assert(maxSize >= -1);
+            if (maxSize > 0)
+                Debug.Assert(minSize <= maxSize);
 
-            Grow(minSize);
+            if (Size < minSize)
+                Grow(minSize - Size);
         }
 
         /// <summary>
@@ -213,7 +291,7 @@ namespace Spewnity
         public T Get()
         {
             T obj = TryGet();
-            if (obj == null)
+            if (obj == null && busy.Count > 0)
             {
                 Release(busy[0]);
                 obj = TryGet();
@@ -228,12 +306,9 @@ namespace Spewnity
         /// <returns>The object, or null if no objects are available</returns>
         public T TryGet()
         {
-            if (available.Count == 0)
-            {
-                if (maxSize < 0 || busy.Count < maxSize)
-                    Grow(growRate);
-                else return null;
-            }
+            if (available.Count == 0 && Grow(growRate) <= 0)
+                return null;
+
             T obj = available[0];
             available.RemoveAt(0);
             busy.Add(obj);
@@ -253,18 +328,41 @@ namespace Spewnity
         }
 
         /// <summary>
+        /// Returns all in-use objects back to the pool
+        /// </summary>
+        public void ReleaseAll()
+        {
+            while (busy.Count > 0)
+                Release(busy[0]);
+        }
+
+        /// <summary>
+        /// Removes all objects from the pool, whether utilized or not.
+        /// <para>Does not call Release on used objects!</para>
+        /// </summary>
+        public void Clear()
+        {
+            available.Clear();
+            busy.Clear();
+        }
+
+        /// <summary>
         /// Grows the pool by a certain amount, but not beyond the maximum size.
         /// </summary>
         /// <param name="count">The number of objects to create in the pool</param>
-        private void Grow(int count)
+        /// <returns>The amount grown; could be zero!</returns>
+        private int Grow(int count)
         {
+            int grown = 0;
             while (count-- > 0)
             {
-                if (Size >= maxSize)
+                if (Size >= maxSize && maxSize > UNLIMITED)
                     break;
 
                 available.Add(Create());
+                grown++;
             }
+            return grown;
         }
 
         /// <summary>
@@ -299,20 +397,24 @@ namespace Spewnity
     {
         public override void OnGUI(Rect pos, SerializedProperty prop, GUIContent label)
         {
+            if(prop == null)
+                return;
+            
+            string parentPath = prop.propertyPath.Substring(0, prop.propertyPath.LastIndexOf("."));
+            SerializedProperty gopProp = prop.serializedObject.FindProperty(parentPath);            
+
             float x = EditorGUIUtility.labelWidth + pos.x;
             float h = EditorGUIUtility.singleLineHeight;
             float y = pos.yMax - h;
             EditorGUI.LabelField(new Rect(pos.x, y, pos.width, h), "Pool Status");
 
-            ObjectPooler pooler = (ObjectPooler) prop.serializedObject.targetObject;
-            Match match = Regex.Match(prop.propertyPath, @"\[(\d+)\]\.poolStatus$");
-            GameObjectPool pool = pooler.pools[int.Parse(match.Groups[1].Value)];
-
             int indent = EditorGUI.indentLevel;
             EditorGUI.indentLevel = 0;
-            string str = pool.available.Count + " ready, " +
-                pool.busy.Count + " busy, " +
-                (pool.maxSize <= 0 ? "Inf" : (pool.maxSize - pool.Size).ToString()) + " potential";
+            int maxSize = gopProp.FindPropertyRelative("maxSize").intValue;
+            int availableSize = gopProp.FindPropertyRelative("available").arraySize;
+            int busySize = gopProp.FindPropertyRelative("busy").arraySize;
+            string str = availableSize + " ready, " + busySize + " busy, " + (maxSize <= GameObjectPool.UNLIMITED ? 
+                "unlimited" : (maxSize - (availableSize + busySize)).ToString() + " potential");
             GUIStyle style = new GUIStyle(GUI.skin.label);
             GUIContent gc = new GUIContent(str);
             Vector2 labelBounds = style.CalcSize(gc);

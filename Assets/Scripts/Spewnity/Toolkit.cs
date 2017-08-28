@@ -259,7 +259,7 @@ namespace Spewnity
                 throw new System.ArgumentException();
 
             string ret = "";
-            foreach(T t in iList)
+            foreach (T t in iList)
             {
                 if (ret != "")
                     ret += delim;
@@ -290,7 +290,8 @@ namespace Spewnity
             if (str.IsEmpty())
                 return str;
             string result = "";
-            foreach(string part in Regex.Split(str, @"([A-Za-z0-9]+)")) result += part.ToInitCase();
+            foreach (string part in Regex.Split(str, @"([A-Za-z0-9]+)"))
+                result += part.ToInitCase();
             return result;
         }
 
@@ -331,7 +332,7 @@ namespace Spewnity
             List<GameObject> list = new List<GameObject>();
 
             GameObject[] allGO = UnityEngine.Object.FindObjectsOfType<GameObject>();
-            foreach(GameObject go in allGO)
+            foreach (GameObject go in allGO)
             {
                 if (go.activeInHierarchy)
                     list.Add(go);
@@ -342,15 +343,17 @@ namespace Spewnity
 
         /// <summary>
         /// Returns the typed component of the object pointed to by the path. 
-        /// <para>Throws an assert if the object or component cannot be found.</para>
+        /// <para>Throws an error if the object or component cannot be found.</para>
         /// </summary>
         /// <example>E.g., Camera cam = Toolkit.GetComponentOf&lt;Camera&gt;("/Camera");</example>
         public static T GetComponentOf<T>(string path)
         {
             GameObject go = GameObject.Find(path);
-            Debug.Assert(go != null);
+            if (go == null)
+                throw new UnityException("Cannot find GameObject at path " + path);
             T component = go.GetComponent<T>();
-            Debug.Assert(component != null);
+            if (component == null)
+                throw new UnityException("Cannot find component " + typeof (T).ToString() + " in GameObject at path " + path);
             return component;
         }
 
@@ -360,7 +363,7 @@ namespace Spewnity
         /// </summary>
         public static void DestroyChildren(this Transform tform)
         {
-            foreach(Transform child in tform)
+            foreach (Transform child in tform)
             {
                 GameObject.Destroy(child.gameObject);
             }
@@ -424,6 +427,30 @@ namespace Spewnity
             GameObject go = GameObject.Instantiate(prefab, position, Quaternion.identity);
             go.transform.parent = parent;
             return go;
+        }
+
+        /// <summary>
+        /// Returns the total visual bounds of a GameObject, including all its children
+        /// </summary>
+        /// <param name="go">The game object</param>
+        /// <param name="includeInactive">Should inactive children be included in the bounds?</param>
+        /// <returns>The full bounds</returns>
+        public static Bounds GetBounds(this GameObject go, bool includeInactive = false)
+        {
+            Bounds bounds = new Bounds();
+            bool boundsInitialized = false;
+
+            foreach (Renderer renderer in go.GetComponentsInChildren<Renderer>(includeInactive))
+            {
+                if (!boundsInitialized)
+                {
+                    bounds = renderer.bounds;
+                    boundsInitialized = true;
+                }
+                else bounds.Encapsulate(renderer.bounds);
+            }
+
+            return bounds;
         }
     }
 }

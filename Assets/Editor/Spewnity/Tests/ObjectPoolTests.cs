@@ -5,13 +5,16 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.TestTools;
 
+// TODO GameObjectPool tests
+// TODO PoolManager tests
+// TODO ComponentPool tests
 public class Test
 {
     [Test]
     public void TestDefaultMinSize()
     {
         ObjectPool<Foo> pool = new ObjectPool<Foo>();
-        pool.Init();
+        pool.Populate();
         Assert.AreEqual(pool.available.Count, pool.minSize);
     }
 
@@ -19,6 +22,7 @@ public class Test
     public void TestMinSize()
     {
         ObjectPool<Foo> pool = new ObjectPool<Foo>(10, 20, 1);
+        pool.Populate();
         Assert.AreEqual(pool.minSize, 10);
         Assert.AreEqual(pool.available.Count, 10);
     }
@@ -51,6 +55,8 @@ public class Test
     public void TestGet()
     {
         ObjectPool<Foo> pool = new ObjectPool<Foo>(1, 1, 1);
+        Assert.AreEqual(pool.available.Count, 0);
+        pool.Populate();
         Assert.AreEqual(pool.available.Count, 1);
         Assert.AreEqual(pool.busy.Count, 0);
         Foo foo = pool.Get();
@@ -64,7 +70,7 @@ public class Test
     [Test]
     public void TestRelease()
     {
-        ObjectPool<Foo> pool = new ObjectPool<Foo>(5, 5, 1);
+        ObjectPool<Foo> pool = new ObjectPool<Foo>(5, 5, 1, true);
         Foo foo = pool.Get();
         pool.Release(foo);
         Assert.AreEqual(pool.available.Count, 5);

@@ -23,7 +23,7 @@ This is a collection of Unity classes and shaders I've written or assembled prim
 
 *InputController* manages your inputs in one location. Gives you an event driven model for responding to events.
 
-*CallbackHelper* provides many support functions for testing your code, focused around callbacks. Keep counts of calls, fire events during awake, start, etc, log messages on callbacks, trigger callback from inspector, etc.
+*CallbackHelper* provides many support functions for testing your code, focused around callbacks. Keep counts of calls, fire events during awake, start, log messages on callbacks, trigger callback from inspector, etc.
 
 *RepositionAttribute* lets your change the order of properties in the inspector. The named properties are pulled to the top.
 
@@ -39,7 +39,7 @@ This is a collection of Unity classes and shaders I've written or assembled prim
 
 *VerticalDrawOrder* sets the sortingOrder of the SpriteRenderer relative to the vertical position of the GameObject's transform.
 
-*Letterbox* resizes the camera's viewpoint to maintain the desired aspect ratio. Adds letter/pillar box black bars.fix
+*Letterbox* resizes the camera's viewpoint to maintain the desired aspect ratio. Adds letter/pillar box black bars.
 
 ### Credits
  - Some shaders from http://forum.unity3d.com/threads/shaders-for-2d-games.71748/ courtesy Dasinf

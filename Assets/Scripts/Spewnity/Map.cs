@@ -125,7 +125,7 @@ namespace Spewnity
             }
 
             // Check all neighbors to make sure they're in bounds
-            foreach(Point off in offsets)
+            foreach (Point off in offsets)
             {
                 Point check = p;
                 check.Add(off);
@@ -147,7 +147,7 @@ namespace Spewnity
 
         public Map<T> SetAll(T value)
         {
-            return EachPosition((x, y) => contents[x, y] = value);
+            return ForEach((x, y) => contents[x, y] = value);
         }
 
         // Clears each position of the map to the default value (NOT the initial value, use SetAll for all)
@@ -177,28 +177,61 @@ namespace Spewnity
             return result;
         }
 
-        // Iterates over each item in the map using the traversal order specified
-        public Map<T> EachItem(System.Action<T> action, int traversalOrder = 0x0)
+        /// <summary>
+        /// Returns all points of the map that match the supplied predicate.
+        /// </summary>
+        /// <param name="predicate">A function that receives a point of the map and returns true if it is a match</param>
+        /// <returns>A list of all matching points</returns>
+        public List<Point> FindAll(System.Predicate<Point> predicate)
         {
-            EachPosition((x, y) => action.Invoke(Get(x, y)), traversalOrder);
+            List<Point> list = new List<Point>();
+            this.ForEach((Point p) =>
+            {
+                if (predicate(p))
+                    list.Add(p);
+            });
+            return list;
+        }
+
+        /// <summary>
+        /// Returns the first point found that matches the predicate supplied.
+        /// </summary>
+        /// <param name="predicate">A function that receives a point of the map and returns true if it is a match</param>
+        /// <returns>The first point matching, or Point(-1,-1) if not found</returns>
+        public Point Find(System.Predicate<Point> predicate)
+        {
+            for (int y = 0; y < height; y++)
+                for (int x = 0; x < width; x++)
+                {
+                    Point pt = new Point(x, y);
+                    if (predicate(pt))
+                        return pt;
+                }
+            return new Point(-1, -1);
+        }
+
+        // Iterates over each item in the map using the traversal order specified
+        public Map<T> ForEach(System.Action<T> action, int traversalOrder = 0x0)
+        {
+            ForEach((x, y) => action.Invoke(Get(x, y)), traversalOrder);
             return this;
         }
 
-        public Map<T> EachPoint(System.Action<Point> action, int traversalOrder = 0x0)
+        public Map<T> ForEach(System.Action<Point> action, int traversalOrder = 0x0)
         {
-            EachPosition((x, y) => action.Invoke(new Point(x, y)), traversalOrder);
+            ForEach((x, y) => action.Invoke(new Point(x, y)), traversalOrder);
             return this;
         }
 
         // Iterates over each position in the map using the traversal order specified
         // Traversal.YFirst | Traversal.XReverse is the same as looping over Y
         // in ascending order, then nested looping over X in descending order.
-        public Map<T> EachPosition(System.Action<int, int> action, int order = 0x0)
+        public Map<T> ForEach(System.Action<int, int> action, int traversalOrder = 0x0)
         {
             // Cache flag checks
-            bool revX = (order & XReverse) > 0;
-            bool revY = (order & YReverse) > 0;
-            bool yFirst = (order & YFirst) > 0;
+            bool revX = (traversalOrder & XReverse) > 0;
+            bool revY = (traversalOrder & YReverse) > 0;
+            bool yFirst = (traversalOrder & YFirst) > 0;
 
             // Determine loop details based on flags
             LoopDetails loopX = new LoopDetails(revX ? width - 1 : 0, revX ? -1 : width, revX ? -1 : 1);

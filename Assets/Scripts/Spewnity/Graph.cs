@@ -26,28 +26,25 @@ namespace Spewnity
             return Add(new GraphNode<T>(value));
         }
 
-        // TODO This doesn't check to see if there's already a directed edge
-        public void AddDirectedEdge(GraphNode<T> from, GraphNode<T> to, int cost)
+        // Creates a directional edge between two nodes, if one doesn't already exist.
+        // Otherwise, updates the edge cost.
+        public void ConnectTo(GraphNode<T> from, GraphNode<T> to, int cost)
         {
-            from.neighbors.Add(to);
-            from.costs.Add(cost);
+            int fromIndex = from.neighbors.FindIndex(neighbor => neighbor == to);
+            if (fromIndex == -1)
+            {
+                from.neighbors.Add(to);
+                from.costs.Add(cost);
+            }
+            else from.costs[fromIndex] = cost;
         }
 
-        public void AddUndirectedEdge(GraphNode<T> from, GraphNode<T> to, int cost)
+        // Creates a unidirectional edge between two nodes, if one doesn't already exist
+        // Otherwise, updates the edge cost.
+        public void Connect(GraphNode<T> from, GraphNode<T> to, int cost)
         {
-            from.neighbors.Add(to);
-            from.costs.Add(cost);
-
-            to.neighbors.Add(from);
-            to.costs.Add(cost);
-        }
-
-        public void SetUnidirectedEdgeCost(GraphNode<T> from, GraphNode<T> to, int cost)
-        {
-            int index = from.neighbors.FindIndex(neighbor => neighbor == to);
-            from.costs[index] = cost;
-            index = to.neighbors.FindIndex(neighbor => neighbor == from);
-            to.costs[index] = cost;
+            ConnectTo(from, to, cost);
+            ConnectTo(to, from, cost);
         }
 
         public bool Contains(T value)
@@ -92,14 +89,17 @@ namespace Spewnity
         }
     }
 
-    public class GraphNode<T> : Node<T>
+    public class GraphNode<T>
     {
+        public T value;
+        public List<GraphNode<T>> neighbors = null;
         public List<int> costs;
 
-        public GraphNode(T value = default(T), ICollection<Node<T>> neighbors = null) : base(value, neighbors)
+        public GraphNode(T value = default(T), ICollection<GraphNode<T>> neighbors = null)
         {
-            int count = neighbors == null ? 0 : neighbors.Count;
-            costs = new List<int>(count);
+            this.value = value;
+            this.neighbors = neighbors == null ? new List<GraphNode<T>>() : new List<GraphNode<T>>(neighbors);
+            costs = new List<int>(this.neighbors.Count);
         }
     }
 
@@ -120,38 +120,41 @@ namespace Spewnity
         }
     }
 
-    public class BinaryNode<T> : Node<T>
+    public class BinaryNode<T>
     {
+        public T value;
+        public List<BinaryNode<T>> neighbors = null;
+
         public BinaryNode(T value = default(T), BinaryNode<T> left = null, BinaryNode<T> right = null)
         {
             if (left != null || right != null)
             {
-                base.neighbors = new List<Node<T>>();
-                base.neighbors.Add(left);
-                base.neighbors.Add(right);
+                neighbors = new List<BinaryNode<T>>();
+                neighbors.Add(left);
+                neighbors.Add(right);
             }
-            else base.neighbors = null;
+            else neighbors = null;
         }
 
         public BinaryNode<T> Left
         {
-            get { return base.neighbors == null ? null : (BinaryNode<T>) base.neighbors[0]; }
+            get { return neighbors == null ? null : neighbors[0]; }
             set
             {
-                if (base.neighbors == null)
-                    base.neighbors = new List<Node<T>>(2);
-                base.neighbors[0] = value;
+                if (neighbors == null)
+                    neighbors = new List<BinaryNode<T>>(2);
+                neighbors[0] = value;
             }
         }
 
         public BinaryNode<T> Right
         {
-            get { return base.neighbors == null ? null : (BinaryNode<T>) base.neighbors[1]; }
+            get { return neighbors == null ? null : neighbors[1]; }
             set
             {
-                if (base.neighbors == null)
-                    base.neighbors = new List<Node<T>>(2);
-                base.neighbors[1] = value;
+                if (neighbors == null)
+                    neighbors = new List<BinaryNode<T>>(2);
+                neighbors[1] = value;
             }
         }
     }

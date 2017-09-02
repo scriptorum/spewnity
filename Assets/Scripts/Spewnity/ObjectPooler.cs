@@ -338,7 +338,7 @@ namespace Spewnity
 
         /// <summary>
         /// Removes all objects from the pool, whether utilized or not.
-        /// <para>Does not call Release on used objects!</para>
+        /// <para>Does NOT call Release on used objects! So they will remain in your scene!</para>
         /// </summary>
         public void Clear()
         {

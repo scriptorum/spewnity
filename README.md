@@ -4,7 +4,7 @@ This is a collection of Unity classes and shaders I've written or assembled prim
 ### Classes
 *SoundManager* organizes your sounds. Each one can consist of multiple variations. Sounds can be played back with custom pitch/pan/volume, and those same characteristics can be randomly altered. SoundManager also manages a pool of AudioSources, so you can just `SoundManager.instance.Play("mysound")`. Supports events.
 
-*TweenManager* organizes your tweens. Each tween consists of a target and changes in position/rotation/scale/color over time. (For color, you'll need a SpriteRenderer, Renderer, or Text component.) Tweens can be ping ponged, reversed, and given custom easing. Multiple tweens can be scheduled into a composite. Supports events. Tweens also don't need a target - you can just tween between two values and get a Change event callback with the value.
+*TweenManager* organizes your tweens. Each tween consists of a target and changes in position/rotation/scale/color over time. (For color, you'll need a component with a color property, such as SpriteRenderer, Renderer.Material, Text, TextMesh, or TextMeshPro.) Tweens can be ping ponged, reversed, and given custom easing. Multiple tweens can be scheduled into a composite. Supports events. Tweens also don't need a target - you can just tween between two values and get a Change event callback with the value.
 
 *Toolkit* supports many extension methods for lerping, randomizing, integer-based math, string manipulation, and GameObject assistance.
 

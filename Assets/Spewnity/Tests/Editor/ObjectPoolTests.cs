@@ -1,9 +1,9 @@
 ﻿using System.Collections;
 using NUnit.Framework;
 using Spewnity;
-using UnityEditor;
 using UnityEngine;
 using UnityEngine.TestTools;
+using UnityEditor;
 
 // TODO GameObjectPool tests
 // TODO PoolManager tests

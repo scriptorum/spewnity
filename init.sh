@@ -27,4 +27,14 @@ echo Copying gitignore
 cp "${dir}/.gitignore" $1
 
 echo Copying Assets
-cp -r "$dir/Assets/"* "$1/Assets/"
+cp -r "$dir/Assets/Spewnity" "$1/Assets/"
+
+echo Creating common folders
+mkdir -p "$1/Assets/Scenes/"
+mkdir -p "$1/Assets/Scripts/"
+mkdir -p "$1/Assets/Materials/"
+mkdir -p "$1/Assets/Art/"
+mkdir -p "$1/Assets/Audio/"
+mkdir -p "$1/Assets/Prefabs/"
+mkdir -p "$1/Assets/Fonts/"
+mkdir -p "$1/Raw/AudioRecs"

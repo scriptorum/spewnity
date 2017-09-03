@@ -96,7 +96,7 @@ namespace Spewnity
         /// <param name="tweenName">The unique name of the tween</param>
         public void Stop(string tweenName)
         {
-            foreach(List<Tween> list in new List<Tween>[] { activeTweens, tweensToAdd })
+            foreach (List<Tween> list in new List<Tween>[] { activeTweens, tweensToAdd })
             {
                 list.ForEach((t) => { if (t.name == tweenName) Stop(t); });
             }
@@ -247,7 +247,7 @@ namespace Spewnity
         public void ProcessActiveTweens()
         {
             // Process all active tweens
-            foreach(Tween tween in activeTweens)
+            foreach (Tween tween in activeTweens)
             {
                 // Tween loop has run its delay
                 if (tween.delayRemaining > 0)
@@ -308,7 +308,7 @@ namespace Spewnity
         {
             float timeRatio = tween.timeRemaining / tween.duration;
 
-            foreach(TweenProperty tp in new TweenProperty[] { tween.position, tween.rotation, tween.scale, tween.color, tween.value })
+            foreach (TweenProperty tp in new TweenProperty[] { tween.position, tween.rotation, tween.scale, tween.color, tween.value })
             {
                 if (!tp.enabled) continue;
 
@@ -380,7 +380,7 @@ namespace Spewnity
         [Tooltip("The duration of the tween in seconds, must be > 0")]
         public float duration;
 
-        [Tooltip("A GameObject; if you are doing color/alpha tweening, this must contain a SpriteRenderer, Rendererer or Text")]
+        [Tooltip("A GameObject; if you are doing color/alpha tweening, this must contain a SpriteRenderer, Rendererer, Text, TextMesh, or TextMeshPro")]
         public GameObject target;
 
         [Tooltip("Adjusts the position of the transform")]
@@ -392,7 +392,7 @@ namespace Spewnity
         [Tooltip("Adjusts the scale of the transform; note that 1.0 is default size")]
         public TweenPropertyScale scale;
 
-        [Tooltip("Adjusts the color of a SpriteRenderer, Renderer, or Text component attached to this GameObject")]
+        [Tooltip("Adjusts the color of a SpriteRenderer, Rendererer, Text, TextMesh, or TextMeshPro component attached to this GameObject")]
         public TweenPropertyColor color;
 
         [Tooltip("The value of the the tween after it is kicked off, or the last value assigned to the target after the tween finished")]
@@ -416,13 +416,7 @@ namespace Spewnity
         public bool initialized;
 
         [System.NonSerialized]
-        public SpriteRenderer spriteRenderer;
-
-        [System.NonSerialized]
-        public Renderer renderer;
-
-        [System.NonSerialized]
-        public Text text;
+        public Component component;
 
         public Tween()
         {
@@ -480,9 +474,15 @@ namespace Spewnity
             }
 
             // Update caches for non-transform components
-            this.spriteRenderer = target == null ? null : target.GetComponent<SpriteRenderer>();
-            this.renderer = target == null ? null : target.GetComponent<Renderer>();
-            this.text = target == null ? null : target.GetComponent<Text>();
+            this.component = null;
+            if (target != null)
+            {
+                if (component == null) component = target.GetComponent<TextMesh>();
+                if (component == null) component = target.GetComponent<Text>();
+                if (component == null) component = target.GetComponent<SpriteRenderer>();
+                if (component == null) component = target.GetComponent("TMPro.TextMeshPro");
+                if (component == null) component = target.GetComponent<Renderer>();
+            }
 
             // Activate each property
             position.Activate(this);
@@ -663,21 +663,34 @@ namespace Spewnity
     {
         public override TweenValue? GetTargetValue(Tween tween)
         {
-            if (tween.spriteRenderer != null)
-                return TweenValue.Color(tween.spriteRenderer.color);
-            else if (tween.text != null)
-                return TweenValue.Color(tween.text.color);
-            else if (tween.renderer != null)
-                return TweenValue.Color(tween.renderer.material.color);
-            else throw new UnityException("TweenType.Color requires target to have a SpriteRenderer, Renderer or Text component");
+            if (tween.component is SpriteRenderer)
+                return TweenValue.Color((tween.component as SpriteRenderer).color);
+            else if (tween.component is Text)
+                return TweenValue.Color((tween.component as Text).color);
+            else if (tween.component is Renderer)
+                return TweenValue.Color((tween.component as Renderer).material.color);
+            else if (tween.component is TextMesh)
+                return TweenValue.Color((tween.component as TextMesh).color);
+            else if (tween.component.GetType().ToString() == "TMPro.TextMeshPro") // TextMeshPro may not be installed
+                return TweenValue.Color((Color) tween.component.GetType().GetProperty("color").GetValue(tween.component, null));
+            else throw new UnityException("TweenType.Color requires target to have a SpriteRenderer, Renderer, Text, TextMesh or TextMeshPro component (Found:" +
+                tween.component.GetType().ToString() + ")");
         }
 
         public override void Apply(Tween tween)
         {
-            if (tween.spriteRenderer != null) tween.spriteRenderer.color = value.Color();
-            else if (tween.text != null) tween.text.color = value.Color();
-            else if (tween.renderer != null) tween.renderer.material.color = value.Color();
-            else Debug.Log("TweenType.Color requires target to have a SpriteRenderer, Renderer or Text component");
+            if (tween.component is SpriteRenderer)
+                ((SpriteRenderer) tween.component).color = value.Color();
+            else if (tween.component is Text)
+                ((Text) tween.component).color = value.Color();
+            else if (tween.component is Renderer)
+                ((Renderer) tween.component).material.color = value.Color();
+            else if (tween.component is TextMesh)
+                ((TextMesh) tween.component).color = value.Color();
+            else if (tween.component.GetType().ToString() == "TMPro.TextMeshPro") // TextMeshPro may not be installed
+                tween.component.GetType().GetProperty("color").SetValue(tween.component, value.Color(), null);
+            else throw new UnityException("TweenType.Color requires target to have a SpriteRenderer, Renderer, Text, TextMesh or TextMeshPro component (Found:" +
+                tween.component.GetType().ToString() + ")");
         }
 
         public override void AddValueFields(SerializedProperty prop, Rect rect, float width, bool isTweenValue = false)
@@ -911,8 +924,8 @@ namespace Spewnity
         public CompoundTween(CompoundTween ct)
         {
             this.name = ct.name;
-            foreach(CompoundTweenTask task in tasks)
-            this.tasks.Add(task.Clone());
+            foreach (CompoundTweenTask task in tasks)
+                this.tasks.Add(task.Clone());
         }
 
         public CompoundTween Clone()
@@ -921,17 +934,17 @@ namespace Spewnity
         }
         public void Activate(TweenManager tm)
         {
-            foreach(CompoundTweenTask task in tasks)
-            task.Activate(tm);
+            foreach (CompoundTweenTask task in tasks)
+                task.Activate(tm);
         }
 
         public bool Apply(TweenManager tm)
         {
             bool complete = true;
 
-            foreach(CompoundTweenTask task in tasks)
-            if (task.Apply(tm) == false)
-                complete = false;
+            foreach (CompoundTweenTask task in tasks)
+                if (task.Apply(tm) == false)
+                    complete = false;
 
             return complete;
         }

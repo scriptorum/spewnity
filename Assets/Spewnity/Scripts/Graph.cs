@@ -6,29 +6,29 @@ using System.Collections.Generic;
 // You probably want to use this instead: http://yaccconstructor.github.io/QuickGraph/
 namespace Spewnity
 {
-    public class Graph<T> : IEnumerable<GraphNode<T>>
+    public class Graph<TValue> : IEnumerable<GraphNode<TValue>>
     {
-        public List<GraphNode<T>> nodeSet;
+        public List<GraphNode<TValue>> nodes;
 
-        public Graph(List<GraphNode<T>> nodeSet = null)
+        public Graph(List<GraphNode<TValue>> nodes = null)
         {
-            this.nodeSet = nodeSet == null ? new List<GraphNode<T>>() : nodeSet;
+            this.nodes = nodes == null ? new List<GraphNode<TValue>>() : nodes;
         }
 
-        public Graph<T> Add(GraphNode<T> value)
+        public Graph<TValue> Add(GraphNode<TValue> value)
         {
-            nodeSet.Add(value);
+            nodes.Add(value);
             return this;
         }
 
-        public Graph<T> Add(T value)
+        public Graph<TValue> Add(TValue value)
         {
-            return Add(new GraphNode<T>(value));
+            return Add(new GraphNode<TValue>(value));
         }
 
         // Creates a directional edge between two nodes, if one doesn't already exist.
         // Otherwise, updates the edge cost.
-        public void ConnectTo(GraphNode<T> from, GraphNode<T> to, int cost)
+        public void ConnectTo(GraphNode<TValue> from, GraphNode<TValue> to, int cost)
         {
             int fromIndex = from.neighbors.FindIndex(neighbor => neighbor == to);
             if (fromIndex == -1)
@@ -41,26 +41,26 @@ namespace Spewnity
 
         // Creates a unidirectional edge between two nodes, if one doesn't already exist
         // Otherwise, updates the edge cost.
-        public void Connect(GraphNode<T> from, GraphNode<T> to, int cost)
+        public void Connect(GraphNode<TValue> from, GraphNode<TValue> to, int cost)
         {
             ConnectTo(from, to, cost);
             ConnectTo(to, from, cost);
         }
 
-        public bool Contains(T value)
+        public bool Contains(TValue value)
         {
-            return nodeSet.FindIndex((GraphNode<T> node) => node.value.Equals(value)) >= 0;
+            return nodes.FindIndex((GraphNode<TValue> node) => node.value.Equals(value)) >= 0;
         }
 
-        public bool Remove(T value)
+        public bool Remove(TValue value)
         {
             // Remove node
-            GraphNode<T> nodeToRemove = nodeSet.Find((GraphNode<T> node) => node.value.Equals(value));
+            GraphNode<TValue> nodeToRemove = nodes.Find((GraphNode<TValue> node) => node.value.Equals(value));
             if (nodeToRemove == null) return false;
-            nodeSet.Remove(nodeToRemove);
+            nodes.Remove(nodeToRemove);
 
             // Remove connections to this node
-            foreach (GraphNode<T> node in nodeSet)
+            foreach (GraphNode<TValue> node in nodes)
             {
                 int index = node.neighbors.IndexOf(nodeToRemove);
                 if (index != -1)
@@ -72,10 +72,10 @@ namespace Spewnity
             return true;
         }
 
-        public GraphNode<T> this [int index]
+        public GraphNode<TValue> this [int index]
         {
-            get { return nodeSet[index]; }
-            set { nodeSet[index] = value; }
+            get { return nodes[index]; }
+            set { nodes[index] = value; }
         }
 
         IEnumerator IEnumerable.GetEnumerator()
@@ -83,9 +83,9 @@ namespace Spewnity
             return this.GetEnumerator();
         }
 
-        public IEnumerator<GraphNode<T>> GetEnumerator()
+        public IEnumerator<GraphNode<TValue>> GetEnumerator()
         {
-            return ((IEnumerable<GraphNode<T>>) nodeSet).GetEnumerator();
+            return ((IEnumerable<GraphNode<TValue>>) nodes).GetEnumerator();
         }
     }
 
@@ -94,6 +94,8 @@ namespace Spewnity
         public T value;
         public List<GraphNode<T>> neighbors = null;
         public List<int> costs;
+
+        public GraphNode() : this(default(T)) { }
 
         public GraphNode(T value = default(T), ICollection<GraphNode<T>> neighbors = null)
         {

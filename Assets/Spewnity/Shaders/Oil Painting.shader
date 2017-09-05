@@ -1,6 +1,4 @@
-﻿// Upgrade NOTE: replaced 'mul(UNITY_MATRIX_MVP,*)' with 'UnityObjectToClipPos(*)'
-
-//
+﻿//
 // http://www.shaderslab.com/demo-63---oil-painting.html
 //
 Shader "Spewnity/Oil Painting"

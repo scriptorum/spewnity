@@ -1,14 +1,19 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using UnityEngine;
+
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 // TODO Add StartCoroutine versions of the Lerps? I'll have to extend them off MonoBehaviour then.
 // TODO Should tween functions should check if object is null and end coroutine if the case? Does that lead to bug masking?
 // TODO LerpColor should support null endColor if AnimationCurve is specified
 // TODO Rewrite Join using LINQ, dammit
-
+// TODO Tests for GetParent/GetObject
 namespace Spewnity
 {
     public static class Toolkit
@@ -452,5 +457,79 @@ namespace Spewnity
 
             return bounds;
         }
+
+#if UNITY_EDITOR        
+        /// <summary>
+        /// Returns the object associated with the SerializedProperty.
+        /// </summary>
+        /// <param name="prop">The SerializedProperty</param>
+        /// <returns>An object, ready to cast, e.g.: prop.GetObject() as MyPropObject</returns>
+        public static object GetObject(this SerializedProperty prop)
+        {
+            return GetObjectField(GetParent(prop), prop.name);
+        }
+
+        /// <summary>
+        /// Returns the object associated with the parent of the SerializedProperty.
+        /// <para>Thanks @whydoidoit: http://answers.unity3d.com/questions/425012/get-the-instance-the-serializedproperty-belongs-to.html</para>
+        /// </summary>
+        /// <param name="prop">The SerializedProperty</param>
+        /// <returns>An object, ready to cast, e.g.: prop.GetObject() as MyPropObject</returns>
+        public static object GetParent(this SerializedProperty prop)
+        {
+            var path = prop.propertyPath.Replace(".Array.data[", "[");
+            object obj = prop.serializedObject.targetObject;
+            var elements = path.Split('.');
+            foreach (var element in elements.Take(elements.Length - 1))
+            {
+                if (element.Contains("["))
+                {
+                    var elementName = element.Substring(0, element.IndexOf("["));
+                    var index = System.Convert.ToInt32(element.Substring(element.IndexOf("[")).Replace("[", "").Replace("]", ""));
+                    obj = Toolkit.GetArrayValue(obj, elementName, index);
+                }
+                else obj = Toolkit.GetObjectField(obj, element);
+            }
+            return obj;
+        }
+
+        /// <summary>
+        /// Uses reflection to return the object's field member.
+        /// </summary>
+        /// <param name="source">A class object</param>
+        /// <param name="name">The name of a member field</param>
+        /// <returns>The associated object</returns>
+        public static object GetObjectField(object source, string name)
+        {
+            if (source == null)
+                return null;
+            var type = source.GetType();
+            var f = type.GetField(name, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+            if (f == null)
+            {
+                var p = type.GetProperty(name, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+                if (p == null)
+                    return null;
+                return p.GetValue(source, null);
+            }
+            return f.GetValue(source);
+        }
+
+        /// <summary>
+        /// Returns the value of the a specific index of an untyped enumerable object.
+        /// </summary>
+        /// <param name="source">A class object</param>
+        /// <param name="name">The name of an enumerable member field (array, etc)</param>
+        /// <param name="index">The value at the index of the enumerable member</param>
+        /// <returns>The associated value</returns>
+        public static object GetArrayValue(object source, string name, int index)
+        {
+            var enumerable = Toolkit.GetObjectField(source, name) as IEnumerable;
+            var enm = enumerable.GetEnumerator();
+            while (index-- >= 0)
+                enm.MoveNext();
+            return enm.Current;
+        }
+#endif
     }
 }

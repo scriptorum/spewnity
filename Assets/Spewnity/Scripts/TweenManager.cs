@@ -28,6 +28,8 @@ namespace Spewnity
     /// <para>Preview your tweens live, just by clicking the button in the inspector while playing.</para>
     /// <para>Hook in events for tween start, change, and stop. Use Compound Tweens to choreograph several tweens with 
     /// different objects together.</para>
+    /// <para>You can also use the Tween class directly, bypassing TweenManager. Call Activate() to start your tween, and Process() 
+    /// it during your Update method</para>
     /// </summary>
     public class TweenManager : MonoBehaviour
     {
@@ -35,9 +37,6 @@ namespace Spewnity
 
         [Tooltip("If you have multiple TweenManagers, setting this to true ensures this TweenManager is assigned to TweenManager.instance")]
         public bool primaryInstance;
-
-        [Tooltip("If false, any tween that lacks a target throws an error; if true, tweens lacking a target use THIS GameObject")]
-        public bool autoTarget = false;
 
         [Tooltip("A set of one or more persistant tweens, that can also be used as tween templates")]
         public List<Tween> tweenTemplates;
@@ -248,40 +247,7 @@ namespace Spewnity
         {
             // Process all active tweens
             foreach (Tween tween in activeTweens)
-            {
-                // Tween loop has run its delay
-                if (tween.delayRemaining > 0)
-                {
-                    tween.delayRemaining -= Time.deltaTime;
-                    if (tween.delayRemaining > 0)
-                        continue;
-                    tween.delayRemaining = 0f;
-                    tween.options.events.Loop.Invoke(tween);
-                }
-
-                // Tween loop has run its duration
-                else
-                {
-                    tween.timeRemaining -= Time.deltaTime;
-                    if (tween.timeRemaining < 0f)
-                    {
-                        tween.timeRemaining = 0f;
-                        tween.loopsRemaining--;
-                    }
-                }
-
-                ApplyTween(tween);
-
-                if (tween.timeRemaining <= 0f)
-                {
-                    // Tween has finished loop
-                    if (tween.loopsRemaining != 0)
-                        tween.Activate(this, true);
-
-                    // Tween has finished all iterations
-                    else tween.options.events.End.Invoke(tween);
-                }
-            }
+                tween.Process();
 
             // Remove any inactive tweens from list
             activeTweens.RemoveAll(t => t.loopsRemaining == 0);
@@ -297,45 +263,9 @@ namespace Spewnity
                 tweensToAdd.RemoveAt(0);
 
                 // Start it up
-                tween.Activate(this);
                 activeTweens.Add(tween);
-                if (tween.options.events != null) tween.options.events.Start.Invoke(tween);
-                ApplyTween(tween);
+                tween.Activate(gameObject);
             }
-        }
-
-        private void ApplyTween(Tween tween)
-        {
-            float timeRatio = tween.timeRemaining / tween.duration;
-
-            foreach (TweenProperty tp in new TweenProperty[] { tween.position, tween.rotation, tween.scale, tween.color, tween.value })
-            {
-                if (!tp.enabled) continue;
-
-                // Update tween time and options
-                float t = timeRatio;
-                if (tp.options.randomize)
-                    t = Random.Range(0f, 1.0f);
-                if (tp.options.pingPong)
-                    t = (t < 0.5f ? 1f - t * 2 : (t - 0.5f) * 2);
-                if (!tp.options.reverse) t = 1 - t;
-                if (tp.options.easing.length > 0)
-                    t = tp.options.easing.Evaluate(t);
-
-                // Now tween
-                tp.value = TweenValue.Vector4(Vector4.LerpUnclamped(tp.startValue.value, tp.endValue.value, t));
-
-                // WaitThenDest only updates on the last frame
-                if (tp.range == TweenPropertyRange.Dest && tween.timeRemaining > 0f && tween.loopsRemaining != 0)
-                    continue;
-
-                // Apply tween to object
-                tp.Apply(tween);
-            }
-
-            // Call change event
-            if (tween.options.events != null)
-                tween.options.events.Change.Invoke(tween);
         }
 
         void OnValidate()
@@ -374,13 +304,13 @@ namespace Spewnity
     [System.Serializable]
     public class Tween
     {
-        [Tooltip("The unique name of the tween; required for template tweens")]
+        [Tooltip("The unique name of the tween; required for template tweens defined in TweenManager")]
         public string name;
 
         [Tooltip("The duration of the tween in seconds, must be > 0")]
         public float duration;
 
-        [Tooltip("A GameObject; if you are doing color/alpha tweening, this must contain a SpriteRenderer, Rendererer, Text, TextMesh, or TextMeshPro")]
+        [Tooltip("The GameObject to tween; if you are doing color/alpha tweening, this must contain a SpriteRenderer, Rendererer, Text, TextMesh, or TextMeshPro; if using TweenManager, this can be null")]
         public GameObject target;
 
         [Tooltip("Adjusts the position of the transform")]
@@ -457,9 +387,21 @@ namespace Spewnity
         }
 
         /// <summary>
-        /// Called by Play() to prepare the Tween for updating.
+        /// Called when a tween is looping.
         /// </summary>
-        public void Activate(TweenManager tm, bool reactivatingFromLoop = false)
+        public void Reactivate()
+        {
+            Activate(null, true);
+
+        }
+
+        /// <summary>
+        /// Prepare the tween for updating. Usually the first step! See Apply().
+        /// If using TweenManager, this will be done for you.
+        /// </summary>
+        /// <param name="autoTarget">If set, will use as the default target when target is null; if using TweenManager, it will offer itself in this role</param>
+        /// <param name="reactivatingFromLoop">Should be set to true when looping</param>
+        public void Activate(GameObject autoTarget = null, bool reactivatingFromLoop = false)
         {
             if (duration <= 0)
                 throw new UnityException("Duration must be > 0");
@@ -467,8 +409,8 @@ namespace Spewnity
             // Supply default target if requested
             if (this.target == null)
             {
-                if (tm.autoTarget)
-                    this.target = tm.gameObject;
+                if (autoTarget != null)
+                    this.target = autoTarget;
                 else if (position.enabled || rotation.enabled || scale.enabled || color.enabled)
                     throw new UnityException("Target for tween '" + name + "' is missing.");
             }
@@ -500,6 +442,10 @@ namespace Spewnity
                 delayRemaining = 0f;
                 loopsRemaining = options.loops;
             }
+
+            if (options.events != null)
+                options.events.Start.Invoke(this);
+            Apply();
         }
 
         private void Init(string name, float duration, GameObject target, TweenPropertyPosition position = null, TweenPropertyRotation rotation = null,
@@ -514,6 +460,84 @@ namespace Spewnity
             this.scale = scale == null ? new TweenPropertyScale() : scale;
             this.color = color == null ? new TweenPropertyColor() : color;
             this.value = value == null ? new TweenPropertyValue() : value;
+        }
+
+        /// <summary>
+        /// Call this regularly during Update() to continue this tween.
+        /// If using TweenManager, this will be done for you.
+        /// </summary>
+        public void Process()
+        {
+            if (loopsRemaining == 0)
+                return;
+
+            // Tween loop has run its delay
+            if (delayRemaining > 0)
+            {
+                delayRemaining -= Time.deltaTime;
+                if (delayRemaining > 0)
+                    return;
+                delayRemaining = 0f;
+                options.events.Loop.Invoke(this);
+            }
+
+            // Tween loop has run its duration
+            else
+            {
+                timeRemaining -= Time.deltaTime;
+                if (timeRemaining < 0f)
+                {
+                    timeRemaining = 0f;
+                    loopsRemaining--;
+                }
+            }
+
+            // Apply Tween changes
+            Apply();
+
+            if (timeRemaining <= 0f)
+            {
+                // Tween has finished loop
+                if (loopsRemaining != 0)
+                    Reactivate();
+
+                // has finished all iterations
+                else options.events.End.Invoke(this);
+            }
+        }
+
+        private void Apply()
+        {
+            float timeRatio = timeRemaining / duration;
+
+            foreach (TweenProperty tp in new TweenProperty[] { position, rotation, scale, color, value })
+            {
+                if (!tp.enabled) continue;
+
+                // Update tween time and options
+                float t = timeRatio;
+                if (tp.options.randomize)
+                    t = Random.Range(0f, 1.0f);
+                if (tp.options.pingPong)
+                    t = (t < 0.5f ? 1f - t * 2 : (t - 0.5f) * 2);
+                if (!tp.options.reverse) t = 1 - t;
+                if (tp.options.easing.length > 0)
+                    t = tp.options.easing.Evaluate(t);
+
+                // Now tween
+                tp.value = TweenValue.Vector4(Vector4.LerpUnclamped(tp.startValue.value, tp.endValue.value, t));
+
+                // WaitThenDest only updates on the last frame
+                if (tp.range == TweenPropertyRange.Dest && timeRemaining > 0f && loopsRemaining != 0)
+                    continue;
+
+                // Apply tween to object
+                tp.Apply(this);
+            }
+
+            // Call change event
+            if (options.events != null)
+                options.events.Change.Invoke(this);
         }
     }
 
@@ -687,7 +711,7 @@ namespace Spewnity
                 ((Renderer) tween.component).material.color = value.Color();
             else if (tween.component is TextMesh)
                 ((TextMesh) tween.component).color = value.Color();
-            else if (tween.component.GetType().ToString() == "TMPro.TextMeshPro") // TextMeshPro may not be installed
+            else if (tween.component != null && tween.component.GetType().ToString() == "TMPro.TextMeshPro") // TextMeshPro may not be installed
                 tween.component.GetType().GetProperty("color").SetValue(tween.component, value.Color(), null);
             else throw new UnityException("TweenType.Color requires target to have a SpriteRenderer, Renderer, Text, TextMesh or TextMeshPro component (Found:" +
                 tween.component.GetType().ToString() + ")");
@@ -932,6 +956,7 @@ namespace Spewnity
         {
             return new CompoundTween(this);
         }
+
         public void Activate(TweenManager tm)
         {
             foreach (CompoundTweenTask task in tasks)
@@ -1159,15 +1184,17 @@ namespace Spewnity
         {
             // Alternating background colors
             int index = Helper.GetTweenIndex(prop);
-            EditorGUI.DrawRect(pos, new Color(0f, 0f, 0f, index % 2 == 0 ? 0.1f : 0f));
+            if (index > -1)
+                EditorGUI.DrawRect(pos, new Color(0f, 0f, 0f, index % 2 == 0 ? 0.1f : 0f));
 
             EditorGUI.PropertyField(pos, prop, label, true);
-            if (prop.isExpanded)
+
+            if (prop.isExpanded && prop.GetParent() is TweenManager)
             {
                 GUI.enabled = Application.isPlaying;
                 float x = Helper.GetControlLeft(pos.width);
                 if (GUI.Button(new Rect(pos.x + x, pos.yMax - 25f, 100f, 20f),
-                        new GUIContent("Live Preview", "When application is running, press this to preview the tween")))
+                        new GUIContent("Live Preview", "When Tween Manager is running, press this to preview the tween")))
                 {
                     TweenManager tm = (TweenManager) prop.serializedObject.targetObject;
                     string name = prop.serializedObject.FindProperty(prop.propertyPath + ".name").stringValue;
@@ -1204,7 +1231,7 @@ namespace Spewnity
     {
         public override void OnGUI(Rect pos, SerializedProperty prop, GUIContent label)
         {
-            TweenProperty tp = Helper.GetTweenProperty(prop);
+            TweenProperty tp = prop.GetObject() as TweenProperty;
             if (tp == null)
                 return;
 
@@ -1242,7 +1269,7 @@ namespace Spewnity
 
         public override float GetPropertyHeight(SerializedProperty prop, GUIContent label)
         {
-            TweenProperty tp = Helper.GetTweenProperty(prop);
+            TweenProperty tp = prop.GetObject() as TweenProperty;
             if (tp == null)
                 return -EditorGUIUtility.singleLineHeight;
             else if (!tp.enabled || !prop.isExpanded)
@@ -1260,7 +1287,7 @@ namespace Spewnity
         {
             if (IsHidden(prop)) return;
 
-            TweenProperty tp = Helper.GetTweenProperty(prop);
+            TweenProperty tp = prop.GetParent() as TweenProperty;
             SerializedProperty value = prop.FindPropertyRelative("value");
 
             EditorGUI.BeginProperty(pos, new GUIContent("Target"), prop);
@@ -1277,19 +1304,13 @@ namespace Spewnity
         }
         private bool IsHidden(SerializedProperty prop)
         {
-            TweenProperty tp = Helper.GetTweenProperty(prop);
+            TweenProperty tp = prop.GetParent() as TweenProperty;
             if (tp == null)
                 return true;
 
-            // TODO Use TP above
-            string tweenPath = prop.propertyPath.Substring(0, prop.propertyPath.LastIndexOf("."));
-            string rangeTypePath = tweenPath + ".range";
-            SerializedProperty rangeTypeProp = prop.serializedObject.FindProperty(rangeTypePath);
-
-            TweenPropertyRange rangeType = (TweenPropertyRange) rangeTypeProp.enumValueIndex;
-            return (rangeType == TweenPropertyRange.SourceToTarget && prop.name == "dest") ||
-                (rangeType == TweenPropertyRange.TargetToDest && prop.name == "source") ||
-                (rangeType == TweenPropertyRange.Dest && prop.name == "source");
+            return (tp.range == TweenPropertyRange.SourceToTarget && prop.name == "dest") ||
+                (tp.range == TweenPropertyRange.TargetToDest && prop.name == "source") ||
+                (tp.range == TweenPropertyRange.Dest && prop.name == "source");
         }
 
         public override float GetPropertyHeight(SerializedProperty prop, GUIContent label)
@@ -1306,7 +1327,7 @@ namespace Spewnity
     {
         public override void OnGUI(Rect pos, SerializedProperty prop, GUIContent label)
         {
-            TweenProperty tp = Helper.GetTweenProperty(prop);
+            TweenProperty tp = prop.GetParent() as TweenProperty;
             if (tp == null || (tp is TweenPropertyValue && ((TweenPropertyValue) tp).type == TweenPropertyValueType.Float))
                 return;
 
@@ -1325,7 +1346,7 @@ namespace Spewnity
 
         public override float GetPropertyHeight(SerializedProperty prop, GUIContent label)
         {
-            TweenProperty tp = Helper.GetTweenProperty(prop);
+            TweenProperty tp = prop.GetParent() as TweenProperty;
             if (tp == null)
                 return -EditorGUIUtility.standardVerticalSpacing;
             if (tp is TweenPropertyValue && ((TweenPropertyValue) tp).type == TweenPropertyValueType.Float)
@@ -1345,38 +1366,10 @@ namespace Spewnity
 
         public static int GetTweenIndex(SerializedProperty prop)
         {
-            TweenManager tm = (TweenManager) prop.serializedObject.targetObject;
-            Match match = Regex.Match(prop.propertyPath, @"^tweenTemplates\.Array\.data\[(\d+)\]");
+            Match match = Regex.Match(prop.propertyPath, @"\.data\[(\d+)\]$");
+            if (match.Groups.Count < 2)
+                return -1;
             return int.Parse(match.Groups[1].Value);
-        }
-
-        public static Tween GetTween(SerializedProperty prop)
-        {
-            TweenManager tm = (TweenManager) prop.serializedObject.targetObject;
-            return tm.GetTemplateByIndex(GetTweenIndex(prop));
-        }
-
-        public static TweenProperty GetTweenProperty(SerializedProperty prop)
-        {
-            TweenManager tm = (TweenManager) prop.serializedObject.targetObject;
-            Match match = Regex.Match(prop.propertyPath, @"^tweenTemplates\.Array\.data\[(\d+)\]\.(\w+)");
-            Tween tween = tm.GetTemplateByIndex(int.Parse(match.Groups[1].Value));
-            if (tween == null)
-                return null;
-            switch (match.Groups[2].Value)
-            {
-                case "position":
-                    return tween.position;
-                case "scale":
-                    return tween.scale;
-                case "rotation":
-                    return tween.rotation;
-                case "color":
-                    return tween.color;
-                case "value":
-                    return tween.value;
-            }
-            throw new UnityException("Unknown type:" + match.Groups[2].Value);
         }
 
         public static void AddLabel(Rect pos, string propName, float width)

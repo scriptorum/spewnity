@@ -31,13 +31,13 @@ using UnityEditorInternal;
 namespace Spewnity
 {
     [ExecuteInEditMode]
-    public class  Anim : MonoBehaviour
+    public class Anim : MonoBehaviour
     {
         public bool livePreview;
         public string sequenceName;
         public List<AnimSequence> sequences;
         public List<Sprite> frames;
-        public bool paused = false;        
+        public bool paused = false;
         public AnimEvent onLoop;
 
         private int frame = 0;
@@ -58,7 +58,7 @@ namespace Spewnity
 #if DEBUG
                 Debug.Log("DEBUG: No SpriteRenderer defined.");
 #endif             
-                if(sequenceName == "")
+                if (sequenceName == "")
                     paused = true;
             }
         }
@@ -78,20 +78,20 @@ namespace Spewnity
 
         public void Play(string name, bool startPaused = false)
         {
-            if(sequenceName == name)
+            if (sequenceName == name)
                 return;
 
             Replay(name);
         }
 
         public void Replay(string name, bool startPaused = false)
-        {      
-            if(name == null || name == "")
+        {
+            if (name == null || name == "")
             {
                 Clear();
                 return;
             }
-            
+
             if (!IsCached(name))
             {
                 Debug.Log(transform.GetFullPath() + "<Anim> cache failed hit for sequence name: " + name);
@@ -142,13 +142,13 @@ namespace Spewnity
         // per update call, and higher FPS will not change that.
         public void Update()
         {
-            if(paused)
+            if (paused)
                 return;
 
-            #if UNITY_EDITOR
-            if(!Application.isPlaying && !livePreview)
+#if UNITY_EDITOR
+            if (!Application.isPlaying && !livePreview)
                 return;
-            #endif
+#endif
 
             if (sequence == null)
                 return;
@@ -160,7 +160,7 @@ namespace Spewnity
                 if (++frame >= sequence.frameArray.Count)
                 {
                     frame = 0;
-                    onLoop.Invoke(this);                    
+                    onLoop.Invoke(this);
                 }
                 UpdateView();
             }
@@ -168,7 +168,10 @@ namespace Spewnity
 
         private void UpdateView()
         {
-            if (sequence == null || sr == null || frames.Count == 0 || frame < 0 || frame >= sequence.frameArray.Count)
+            if (sr == null)
+                return;
+
+            if (sequence == null || frames.Count == 0 || frame < 0 || frame >= sequence.frameArray.Count)
             {
                 sr.sprite = null;
                 return;
@@ -230,13 +233,13 @@ namespace Spewnity
                     for (int i = left; i != right + order; i += order)
                         result.Add(i);
                 }
-                else if(element.Contains("x"))
+                else if (element.Contains("x"))
                 {
                     string[] extents = element.Split('x');
                     Debug.Assert(extents.Length == 2);
                     int val = int.Parse(extents[0]);
                     int repetition = int.Parse(extents[1]);
-                    while(repetition-- > 0)
+                    while (repetition-- > 0)
                         result.Add(val);
                 }
                 else
@@ -274,10 +277,10 @@ namespace Spewnity
     }
 
     [System.Serializable]
-    public class AnimEvent: UnityEvent<Anim> { }
+    public class AnimEvent : UnityEvent<Anim> { }
 
 #if UNITY_EDITOR
-    [CustomEditor(typeof(Anim))]
+    [CustomEditor(typeof (Anim))]
     public class AnimEditor : Editor
     {
         public override void OnInspectorGUI()
@@ -285,13 +288,13 @@ namespace Spewnity
             DrawDefaultInspector();
 
             // Support live preview
-            Anim anim = (Anim)target;
+            Anim anim = (Anim) target;
             if (anim.livePreview)
                 EditorUtility.SetDirty(target);
         }
     }
 
-    [CustomPropertyDrawer(typeof(AnimSequence))]
+    [CustomPropertyDrawer(typeof (AnimSequence))]
     public class AnimSequenceDrawer : PropertyDrawer
     {
         public override void OnGUI(Rect pos, SerializedProperty prop, GUIContent label)

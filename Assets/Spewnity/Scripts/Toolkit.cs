@@ -209,6 +209,33 @@ namespace Spewnity
             return GetFullPath(o.transform);
         }
 
+        public static T Shift<T>(this IList<T> collection)
+        {
+            T val = collection[0];
+            collection.RemoveAt(0);
+            return val;
+        }
+        
+        public static IList<T> Unshift<T>(this IList<T> collection, T val)
+        {
+            collection.Insert(0, val);
+            return collection;
+        }
+
+        public static IList<T> Pop<T>(this IList<T> collection, T val)
+        {
+            collection.Add(val);
+            return collection;
+        }
+
+        public static T Unpop<T>(this IList<T> collection)
+        {
+            int idx = collection.Count - 1;
+            T val = collection[idx];
+            collection.RemoveAt(idx);
+            return val;
+        }
+
         // 
         /// <summary>
         /// Returns one random object from the list or array 
@@ -358,7 +385,7 @@ namespace Spewnity
                 throw new UnityException("Cannot find GameObject at path " + path);
             T component = go.GetComponent<T>();
             if (component == null)
-                throw new UnityException("Cannot find component " + typeof (T).ToString() + " in GameObject at path " + path);
+                throw new UnityException("Cannot find component " + typeof(T).ToString() + " in GameObject at path " + path);
             return component;
         }
 

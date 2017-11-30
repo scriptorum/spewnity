@@ -53,6 +53,11 @@ namespace Spewnity
             return new Point(left.x + right.x, left.y + right.y);
         }
 
+        public static Point operator - (Point left, Point right)
+        {
+            return new Point(left.x - right.x, left.y - right.y);
+        }
+
         public static implicit operator UnityEngine.Vector2(Point p)
         {
             return new UnityEngine.Vector2(p.x, p.y);
@@ -62,5 +67,7 @@ namespace Spewnity
         {
             return new UnityEngine.Vector3(p.x, p.y, 0);
         }
+
+        public static Point zero = new Point(0, 0);
     }
 }

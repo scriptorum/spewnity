@@ -1,8 +1,9 @@
-﻿using UnityEngine;
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
+using UnityEngine;
 using UnityEngine.Events;
 using Action = System.Action;
+using System;
 
 /**
  * 
@@ -21,9 +22,9 @@ using Action = System.Action;
  * 		aq.Run();
  * 
  **/
-namespace Spewnity                                                                                                                                      
+namespace Spewnity
 {
-	public class ActionQueue: MonoBehaviour
+	public class ActionQueue : MonoBehaviour
 	{
 		public List<Action> actions = new List<Action>();
 		public bool paused = false;
@@ -49,7 +50,7 @@ namespace Spewnity
 			running = true;
 
 			// Run until paused or out of actions
-			while(!paused && actions.Count > 0)
+			while (!paused && actions.Count > 0)
 			{
 				// Run the next action
 				Action action = actions[0];
@@ -95,15 +96,15 @@ namespace Spewnity
 		// If the non-null, this may also "select" the game object.
 		private GameObject Qualify(GameObject go, bool alsoSelectIt = true)
 		{
-			if(go != null)
+			if (go != null)
 			{
-				if(alsoSelectIt) selectedGameObject = go;
+				if (alsoSelectIt) selectedGameObject = go;
 				return go;
 			}
 
-			if(selectedGameObject == null) throw new UnityException("Action requires a GameObject, but none was supplied or selected");
-			
-			return selectedGameObject;			
+			if (selectedGameObject == null) throw new UnityException("Action requires a GameObject, but none was supplied or selected");
+
+			return selectedGameObject;
 		}
 
 		// Tries to cancel the currently playing event
@@ -130,13 +131,13 @@ namespace Spewnity
 			return this;
 		}
 
-		public ActionQueue AddComponent<T>(GameObject go = null) where T:Component
+		public ActionQueue AddComponent<T>(GameObject go = null) where T : Component
 		{
 			Add(() => Qualify(go).AddComponent<T>());
 			return this;
 		}
 
-		public ActionQueue RemoveComponent<T>(GameObject go = null) where T:Component
+		public ActionQueue RemoveComponent<T>(GameObject go = null) where T : Component
 		{
 			Add(() => GameObject.Destroy(Qualify(go).GetComponent<T>()));
 			return this;
@@ -147,7 +148,7 @@ namespace Spewnity
 		{
 			Add(() =>
 			{
-				if(waitForIt)
+				if (waitForIt)
 				{
 					Pause();
 					SoundManager.instance.Play(soundName, (snd) => Resume());
@@ -195,7 +196,7 @@ namespace Spewnity
 			Add(() =>
 			{
 				GameObject.Destroy(Qualify(go));
-				if(go == null) selectedGameObject = null;
+				if (go == null) selectedGameObject = null;
 			});
 			return this;
 		}
@@ -238,4 +239,3 @@ namespace Spewnity
 		}
 	}
 }
-

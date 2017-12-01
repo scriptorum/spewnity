@@ -36,13 +36,13 @@ namespace Spewnity
         public static TweenManager instance;
 
         [Tooltip("If you have multiple TweenManagers, setting this to true ensures this TweenManager is assigned to TweenManager.instance")]
-        public bool primaryInstance;
+        public bool primaryInstance = true;
 
         [Tooltip("A set of one or more persistant tweens, that can also be used as tween templates")]
-        public List<Tween> tweenTemplates;
+        public List<Tween> tweenTemplates = new List<Tween>();
 
         [Tooltip("Each TweenSchedule references a set of tweens that play at the scheduled time, in concert")]
-        public List<CompoundTween> compoundTweens;
+        public List<CompoundTween> compoundTweens = new List<CompoundTween>();
 
         private List<Tween> activeTweens = new List<Tween>();
         private List<Tween> tweensToAdd = new List<Tween>();
@@ -221,6 +221,12 @@ namespace Spewnity
         {
             if (TweenManager.instance == null || this.primaryInstance)
                 TweenManager.instance = this;
+        }
+
+        void Start()
+        {
+            tweenTemplates.ForEach((Tween t) => { if (t.options.autoStart) Play(t); });
+            compoundTweens.ForEach((CompoundTween ct) => { if (ct.autoStart) PlayCompound(ct); });
         }
 
         /// <summary>
@@ -610,7 +616,10 @@ namespace Spewnity
         }
         abstract public TweenValue? GetTargetValue(Tween tween);
         abstract public void Apply(Tween tween);
+
+#if UNITY_EDITOR        
         abstract public void AddValueFields(SerializedProperty value, Rect pos, float adjustedWidth, bool isTweenValue = false);
+#endif // UNITY_EDITOR
     }
 
     [System.Serializable]
@@ -628,6 +637,7 @@ namespace Spewnity
             else tween.target.transform.position = value.Vector3();
         }
 
+#if UNITY_EDITOR
         public override void AddValueFields(SerializedProperty value, Rect pos, float adjustedWidth, bool isTweenValue = false)
         {
             adjustedWidth *= 0.333f;
@@ -635,6 +645,7 @@ namespace Spewnity
             Helper.AddField(value, pos, "y", adjustedWidth, isTweenValue ? frozenAxes.y : false, 10f);
             Helper.AddField(value, pos, "z", adjustedWidth, isTweenValue ? frozenAxes.z : false, 10f);
         }
+#endif // UNITY_EDITOR
     }
 
     [System.Serializable]
@@ -652,6 +663,7 @@ namespace Spewnity
             else tween.target.transform.eulerAngles = value.Vector3();
         }
 
+#if UNITY_EDITOR
         public override void AddValueFields(SerializedProperty value, Rect pos, float adjustedWidth, bool isTweenValue = false)
         {
             adjustedWidth *= 0.333f;
@@ -659,6 +671,8 @@ namespace Spewnity
             Helper.AddField(value, pos, "y", adjustedWidth, isTweenValue ? frozenAxes.y : false, 10f);
             Helper.AddField(value, pos, "z", adjustedWidth, isTweenValue ? frozenAxes.z : false, 10f);
         }
+#endif // UNITY_EDITOR
+
     }
 
     [System.Serializable]
@@ -673,6 +687,7 @@ namespace Spewnity
             tween.target.transform.localScale = value.Vector3();
         }
 
+#if UNITY_EDITOR
         public override void AddValueFields(SerializedProperty value, Rect pos, float adjustedWidth, bool isTweenValue = false)
         {
             adjustedWidth *= 0.333f;
@@ -680,6 +695,7 @@ namespace Spewnity
             Helper.AddField(value, pos, "y", adjustedWidth, isTweenValue ? frozenAxes.y : false, 10f);
             Helper.AddField(value, pos, "z", adjustedWidth, isTweenValue ? frozenAxes.z : false, 10f);
         }
+#endif // UNITY_EDITOR
     }
 
     [System.Serializable]
@@ -717,6 +733,7 @@ namespace Spewnity
                 tween.component.GetType().ToString() + ")");
         }
 
+#if UNITY_EDITOR
         public override void AddValueFields(SerializedProperty prop, Rect rect, float width, bool isTweenValue = false)
         {
             width /= 5;
@@ -732,6 +749,8 @@ namespace Spewnity
                     (Color) prop.vector4Value, false, !frozenAxes.w, false, null);
             }
         }
+#endif // UNITY_EDITOR
+
     }
 
     [System.Serializable]
@@ -746,6 +765,7 @@ namespace Spewnity
 
         public override void Apply(Tween tween) { }
 
+#if UNITY_EDITOR
         public override void AddValueFields(SerializedProperty prop, Rect rect, float width, bool isTweenValue = false)
         {
             int valueIdx = (int) type;
@@ -769,6 +789,7 @@ namespace Spewnity
             if (!label.IsEmpty())
                 Helper.AddField(prop, rect, field, width, show, 10f * label.Length, label);
         }
+#endif // UNITY_EDITOR        
     }
 
     //////////////////////////////////////////////////////////////////////////////// 
@@ -810,6 +831,9 @@ namespace Spewnity
 
         [Tooltip("An optional looping delay (in seconds) that occurs between loops; ignored if loops is 1")]
         public float loopDelay;
+
+        [Tooltip("Starts this tween immediately upon TweenManager Start()")]
+        public bool autoStart;
 
         [Tooltip("Optional event notifications")]
         public TweenEvents events = new TweenEvents();
@@ -921,7 +945,7 @@ namespace Spewnity
         public static TweenValue Vector4(Vector4 v) { return new TweenValue(v); }
         public static TweenValue Color(Color c) { return new TweenValue((Vector4) c); }
 
-        public static TweenValue operator + (TweenValue tv1, TweenValue tv2)
+        public static TweenValue operator +(TweenValue tv1, TweenValue tv2)
         {
             return new TweenValue(tv1.value + tv2.value);
         }
@@ -937,6 +961,9 @@ namespace Spewnity
 
         [Tooltip("One or more tasks, that consists of a tween to play and when to play it")]
         public List<CompoundTweenTask> tasks = new List<CompoundTweenTask>();
+
+        [Tooltip("Starts this compound tween immediately upon TweenManager Start()")]
+        public bool autoStart;
 
         public CompoundTween(string name, List<CompoundTweenTask> tasks = null)
         {
@@ -1090,7 +1117,7 @@ namespace Spewnity
 
 #if UNITY_EDITOR
 
-    [CustomPropertyDrawer(typeof (CompoundTween))]
+    [CustomPropertyDrawer(typeof(CompoundTween))]
     public class CompoundTweenPD : PropertyDrawer
     {
         public override void OnGUI(Rect pos, SerializedProperty prop, GUIContent label)
@@ -1126,7 +1153,7 @@ namespace Spewnity
         }
     }
 
-    [CustomPropertyDrawer(typeof (CompoundTweenTask))]
+    [CustomPropertyDrawer(typeof(CompoundTweenTask))]
     public class CompoundTweenTaskPD : PropertyDrawer
     {
         public override void OnGUI(Rect pos, SerializedProperty prop, GUIContent label)
@@ -1177,7 +1204,7 @@ namespace Spewnity
         }
     }
 
-    [CustomPropertyDrawer(typeof (Tween))]
+    [CustomPropertyDrawer(typeof(Tween))]
     public class TweenPD : PropertyDrawer
     {
         public override void OnGUI(Rect pos, SerializedProperty prop, GUIContent label)
@@ -1222,11 +1249,11 @@ namespace Spewnity
 
     //////////////////////////////////////////////////////////////////////////////// 
 
-    [CustomPropertyDrawer(typeof (TweenPropertyPosition))]
-    [CustomPropertyDrawer(typeof (TweenPropertyRotation))]
-    [CustomPropertyDrawer(typeof (TweenPropertyScale))]
-    [CustomPropertyDrawer(typeof (TweenPropertyColor))]
-    [CustomPropertyDrawer(typeof (TweenPropertyValue))]
+    [CustomPropertyDrawer(typeof(TweenPropertyPosition))]
+    [CustomPropertyDrawer(typeof(TweenPropertyRotation))]
+    [CustomPropertyDrawer(typeof(TweenPropertyScale))]
+    [CustomPropertyDrawer(typeof(TweenPropertyColor))]
+    [CustomPropertyDrawer(typeof(TweenPropertyValue))]
     public class TweenPropertyPD : PropertyDrawer
     {
         public override void OnGUI(Rect pos, SerializedProperty prop, GUIContent label)
@@ -1280,7 +1307,7 @@ namespace Spewnity
 
     //////////////////////////////////////////////////////////////////////////////// 
 
-    [CustomPropertyDrawer(typeof (TweenValue))]
+    [CustomPropertyDrawer(typeof(TweenValue))]
     public class TweenValuePD : PropertyDrawer
     {
         public override void OnGUI(Rect pos, SerializedProperty prop, GUIContent label)
@@ -1322,7 +1349,7 @@ namespace Spewnity
 
     //////////////////////////////////////////////////////////////////////////////// 
 
-    [CustomPropertyDrawer(typeof (TweenFrozenAxes))]
+    [CustomPropertyDrawer(typeof(TweenFrozenAxes))]
     public class TweenFrozenAxesPD : PropertyDrawer
     {
         public override void OnGUI(Rect pos, SerializedProperty prop, GUIContent label)
@@ -1408,6 +1435,6 @@ namespace Spewnity
     }
 
     // https://issuetracker.unity3d.com/issues/propertydrawer-editorgui-dot-drawrect-disappears-when-unfocused
-    [CanEditMultipleObjects][CustomEditor(typeof (MonoBehaviour), true)] public class MonoBehaviour_DummyCustomEditor : Editor { }
+    // [CanEditMultipleObjects][CustomEditor(typeof (MonoBehaviour), true)] public class MonoBehaviour_DummyCustomEditor : Editor { }
 #endif
 }

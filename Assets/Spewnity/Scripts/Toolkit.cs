@@ -209,26 +209,38 @@ namespace Spewnity
             return GetFullPath(o.transform);
         }
 
-        public static T Shift<T>(this IList<T> collection)
+        /// <summary>
+        /// Removes an item from the front of a collection and returns the item
+        /// </summary>
+        public static T Shift<T>(this List<T> collection)
         {
             T val = collection[0];
             collection.RemoveAt(0);
             return val;
         }
-        
-        public static IList<T> Unshift<T>(this IList<T> collection, T val)
+
+        /// <summary>
+        /// Adds an item to the front of a collection and returns the collection
+        /// </summary>
+        public static List<T> Unshift<T>(this List<T> collection, T val)
         {
             collection.Insert(0, val);
             return collection;
         }
 
-        public static IList<T> Pop<T>(this IList<T> collection, T val)
+        /// <summary>
+        /// Adds an item to the end of a collection and returns the collection
+        /// </summary>
+        public static List<T> Unpop<T>(this List<T> collection, T val)
         {
             collection.Add(val);
             return collection;
         }
 
-        public static T Unpop<T>(this IList<T> collection)
+        /// <summary>
+        /// Removes the last item of a collection and returns the item
+        /// </summary>
+        public static T Pop<T>(this List<T> collection)
         {
             int idx = collection.Count - 1;
             T val = collection[idx];

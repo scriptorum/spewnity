@@ -116,8 +116,8 @@ public class ToolkitTests
         b.transform.parent = a.transform;
         Assert.AreEqual(b, a.GetChild("b"));
         Assert.AreEqual(b.transform, a.transform.GetChild("b"));
-        Assert.Throws(typeof (System.ArgumentException), () => a.transform.GetChild("c"));
-        Assert.Throws(typeof (System.ArgumentException), () => a.transform.GetChild(null));
+        Assert.Throws(typeof(System.ArgumentException), () => a.transform.GetChild("c"));
+        Assert.Throws(typeof(System.ArgumentException), () => a.transform.GetChild(null));
     }
 
     [Test]
@@ -287,8 +287,8 @@ public class ToolkitTests
         Assert.AreEqual("1__2__3__4__5__6__7__8__9", strArray.Join("__"));
 
         bool[] nullArray = null;
-        Assert.Throws(typeof (System.ArgumentException), () => strArray.Join(null));
-        Assert.Throws(typeof (System.ArgumentException), () => nullArray.Join());
+        Assert.Throws(typeof(System.ArgumentException), () => strArray.Join(null));
+        Assert.Throws(typeof(System.ArgumentException), () => nullArray.Join());
     }
 
     [Test]
@@ -297,11 +297,49 @@ public class ToolkitTests
         string zeroStr = "";
         Assert.DoesNotThrow(() => zeroStr.ThrowIfNull());
         string nullStr = null;
-        Assert.Throws(typeof (UnityException), () => nullStr.ThrowIfNull());
+        Assert.Throws(typeof(UnityException), () => nullStr.ThrowIfNull());
         GameObject go = null;
-        Assert.Throws(typeof (UnityException), () => go.ThrowIfNull());
+        Assert.Throws(typeof(UnityException), () => go.ThrowIfNull());
         go = new GameObject();
         Assert.DoesNotThrow(() => go.ThrowIfNull());
+    }
+
+    [Test]
+    public void TestToolkitShift()
+    {
+        System.Collections.Generic.List<int> intList = new System.Collections.Generic.List<int>() { 4, 6, 8, 10, 12 };
+        Assert.AreEqual(5, intList.Count);
+        Assert.AreEqual(4, intList.Shift());
+        Assert.AreEqual(4, intList.Count);
+    }
+
+    [Test]
+    public void TestToolkitUnshift()
+    {
+        System.Collections.Generic.List<int> intList = new System.Collections.Generic.List<int>() { 4, 6, 8, 10, 12 };
+        Assert.AreEqual(5, intList.Count);
+        Assert.AreEqual(intList, intList.Unshift(2));
+        Assert.AreEqual(6, intList.Count);
+        Assert.AreEqual(2, intList[0]);
+    }
+
+    [Test]
+    public void TestToolkitPop()
+    {
+        System.Collections.Generic.List<int> intList = new System.Collections.Generic.List<int>() { 4, 6, 8, 10, 12 };
+        Assert.AreEqual(5, intList.Count);
+        Assert.AreEqual(12, intList.Pop());
+        Assert.AreEqual(4, intList.Count);
+    }
+
+    [Test]
+    public void TestToolkitUnpop()
+    {
+        System.Collections.Generic.List<int> intList = new System.Collections.Generic.List<int>() { 4, 6, 8, 10, 12 };
+        Assert.AreEqual(5, intList.Count);
+        Assert.AreEqual(intList, intList.Unpop(14));
+        Assert.AreEqual(6, intList.Count);
+        Assert.AreEqual(14, intList[intList.Count - 1]);
     }
 
     [Test]

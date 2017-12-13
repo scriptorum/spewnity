@@ -28,14 +28,14 @@ namespace Spewnity
 
         public void Awake()
         {
-            foreach(SceneInfo info in sceneInfo)
-            if (info.trigger == SceneTrigger.KeyDown)
-            {
-                if (info.keyCodes.Length == 0)
-                    Debug.Log("Warning: Trigger method is KeyDown but no keyCodes specified.");
-                checkKeys = true;
-                break;
-            }
+            foreach (SceneInfo info in sceneInfo)
+                if (info.trigger == SceneTrigger.KeyDown)
+                {
+                    if (info.keyCodes.Length == 0)
+                        Debug.Log("Warning: Trigger method is KeyDown but no keyCodes specified.");
+                    checkKeys = true;
+                    break;
+                }
             else if (info.trigger == SceneTrigger.TriggerEnter2D || info.trigger == SceneTrigger.MouseDown)
             {
                 if (GetComponent<Collider2D>() == null)
@@ -70,7 +70,7 @@ namespace Spewnity
 
         private void CheckTrigger(SceneTrigger trigger, string tag = "")
         {
-            foreach(SceneInfo info in sceneInfo)
+            foreach (SceneInfo info in sceneInfo)
             {
                 // Check for trigger, optional object marker, and optional collision object tag
                 if ((info.trigger == trigger) &&
@@ -81,7 +81,7 @@ namespace Spewnity
                     if (trigger == SceneTrigger.KeyDown)
                     {
                         bool keyIsDown = false;
-                        foreach(KeyCode keyCode in info.keyCodes)
+                        foreach (KeyCode keyCode in info.keyCodes)
                         {
                             if (Input.GetKeyDown(keyCode))
                                 keyIsDown = true;
@@ -101,11 +101,18 @@ namespace Spewnity
         {
             SceneLoader.data = info.data;
             info.preTrigger.Invoke();
-            if (!info.soundEffect.IsEmpty())
+            if (info.soundEffect != null)
             {
-                if (SoundManager.instance == null)
-                    Debug.Log("Warning: SoundEffect " + info.soundEffect + " is specified but SoundManager not found.");
-                else SoundManager.instance.Play(info.soundEffect);
+                GameObject go = new GameObject();
+                go.SetActive(false);
+                go.name = "scene loader sound holder";
+                AudioSource source = go.AddComponent<AudioSource>();
+                DontDestroyOnLoad(go);                
+                AutoDestroy ad = go.AddComponent<AutoDestroy>();
+                ad.afterSeconds = info.soundEffect.length + 0.1f;                
+                source.clip = info.soundEffect;
+                go.SetActive(true);
+                source.Play();
             }
             if (info.name.IsEmpty())
                 SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex + 1, info.mode);
@@ -132,7 +139,7 @@ namespace Spewnity
         public string tag;
 
         [Tooltip("You can specify a SoundManager sound name here, which will be played when the trigger occurs")]
-        public string soundEffect;
+        public AudioClip soundEffect;
 
         [Tooltip("This string data will be stored in SceneLoader.data when the trigger occurs")]
         public string data;

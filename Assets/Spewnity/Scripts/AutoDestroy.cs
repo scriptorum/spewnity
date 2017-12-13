@@ -26,11 +26,24 @@ namespace Spewnity
 	public class AutoDestroy : MonoBehaviour
 	{
 		public bool excludeFromBuild;
+		public float afterSeconds = 0f; // Forestall destruction this number of seconds
+
+		public AutoDestroy() {}
+		public AutoDestroy(float afterSeconds)
+		{
+			this.afterSeconds = afterSeconds;
+		}
 
 		void Awake()
 		{
 			if(excludeFromBuild) DestroyImmediate(gameObject);
-			else Destroy(gameObject);
+			else if(afterSeconds <= 0) Destroy(gameObject);
+		}
+
+		void Update()
+		{
+			afterSeconds -= Time.deltaTime;
+			if(afterSeconds <= 0) Destroy(gameObject);
 		}
 
 		void OnValidate()

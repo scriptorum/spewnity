@@ -461,11 +461,11 @@ namespace Spewnity
             this.duration = duration;
             this.target = target;
             this.options = options == null ? new TweenOptions() : options;
-            this.position = position == null ? new TweenPropertyPosition() : position;
-            this.rotation = rotation == null ? new TweenPropertyRotation() : rotation;
-            this.scale = scale == null ? new TweenPropertyScale() : scale;
-            this.color = color == null ? new TweenPropertyColor() : color;
-            this.value = value == null ? new TweenPropertyValue() : value;
+            this.position = position == null ? new TweenPropertyPosition() : new TweenPropertyPosition(position);
+            this.rotation = rotation == null ? new TweenPropertyRotation() : new TweenPropertyRotation(rotation);
+            this.scale = scale == null ? new TweenPropertyScale() : new TweenPropertyScale(scale);
+            this.color = color == null ? new TweenPropertyColor() : new TweenPropertyColor(color);
+            this.value = value == null ? new TweenPropertyValue() : new TweenPropertyValue(value);
         }
 
         /// <summary>
@@ -533,7 +533,7 @@ namespace Spewnity
                 // Now tween
                 tp.value = TweenValue.Vector4(Vector4.LerpUnclamped(tp.startValue.value, tp.endValue.value, t));
 
-                // WaitThenDest only updates on the last frame
+                // Dest only updates on the last frame
                 if (tp.range == TweenPropertyRange.Dest && timeRemaining > 0f && loopsRemaining != 0)
                     continue;
 
@@ -617,6 +617,35 @@ namespace Spewnity
         abstract public TweenValue? GetTargetValue(Tween tween);
         abstract public void Apply(Tween tween);
 
+        protected TweenProperty() { }
+
+        protected TweenProperty(bool enabled, TweenValue dest, TweenValue source, TweenValue startValue, TweenValue endValue,
+            TweenValue value, TweenFrozenAxes frozenAxes, TweenPropertyRange range, TweenPropertyOptions options)
+        {
+            this.enabled = enabled;
+            this.dest = dest;
+            this.source = source;
+            this.startValue = startValue;
+            this.endValue = endValue;
+            this.frozenAxes = frozenAxes;
+            this.range = range;
+            this.value = value;
+            this.options = options;
+        }
+
+        protected TweenProperty(TweenProperty other)
+        {
+            this.enabled = other.enabled;
+            this.dest = other.dest;
+            this.source = other.source;
+            this.startValue = other.startValue;
+            this.endValue = other.endValue;
+            this.frozenAxes = other.frozenAxes;
+            this.range = other.range;
+            this.value = other.value;
+            this.options = other.options;
+        }
+
 #if UNITY_EDITOR        
         abstract public void AddValueFields(SerializedProperty value, Rect pos, float adjustedWidth, bool isTweenValue = false);
 #endif // UNITY_EDITOR
@@ -625,6 +654,9 @@ namespace Spewnity
     [System.Serializable]
     public class TweenPropertyPosition : TweenProperty
     {
+        public TweenPropertyPosition(TweenPropertyPosition other) : base(other) { }
+        public TweenPropertyPosition() { }
+
         public override TweenValue? GetTargetValue(Tween tween)
         {
             if (options.local) return TweenValue.Vector3(tween.target.transform.localPosition);
@@ -651,6 +683,9 @@ namespace Spewnity
     [System.Serializable]
     public class TweenPropertyRotation : TweenProperty
     {
+        public TweenPropertyRotation(TweenPropertyRotation other) : base(other) { }
+        public TweenPropertyRotation() { }
+
         public override TweenValue? GetTargetValue(Tween tween)
         {
             if (options.local) return TweenValue.Vector3(tween.target.transform.localEulerAngles);
@@ -678,6 +713,9 @@ namespace Spewnity
     [System.Serializable]
     public class TweenPropertyScale : TweenProperty
     {
+        public TweenPropertyScale(TweenPropertyScale other) : base(other) { }
+        public TweenPropertyScale() { }
+
         public override TweenValue? GetTargetValue(Tween tween)
         {
             return TweenValue.Vector3(tween.target.transform.localScale);
@@ -701,6 +739,9 @@ namespace Spewnity
     [System.Serializable]
     public class TweenPropertyColor : TweenProperty
     {
+        public TweenPropertyColor(TweenPropertyColor other) : base(other) { }
+        public TweenPropertyColor() { }
+
         public override TweenValue? GetTargetValue(Tween tween)
         {
             if (tween.component is SpriteRenderer)
@@ -756,6 +797,9 @@ namespace Spewnity
     [System.Serializable]
     public class TweenPropertyValue : TweenProperty
     {
+        public TweenPropertyValue(TweenPropertyValue other) : base(other) { }
+        public TweenPropertyValue() { }
+
         public TweenPropertyValueType type;
 
         public override TweenValue? GetTargetValue(Tween tween)
@@ -1011,59 +1055,52 @@ namespace Spewnity
         [Tooltip("Once the main tween plays, the amount to wait (in seconds) before playing this subtween; usually the first is set to 0")]
         public float delay;
 
+        [Tooltip("Optional target to use instead of the one assigned to the tween")]
+        public GameObject target;
+
         [System.NonSerialized]
         public Tween tween; // A tween assigned dynamically
 
         [HideInInspector]
-        public float timeRemaining;
+        public float delayRemaining;
 
         [System.NonSerialized]
         public bool active = false;
 
-        public CompoundTweenTask(CompoundTweenTask task, GameObject altTarget = null)
+        public CompoundTweenTask(CompoundTweenTask task)
         {
             this.template = task.template;
             this.delay = task.delay;
-            this.tween = tween == null ? null : tween.Clone(altTarget);
+            this.target = task.target;
+            this.tween = task.tween;
         }
 
-        public CompoundTweenTask(CompoundTweenTask task, TweenManager tm, GameObject altTarget)
+        public CompoundTweenTask Clone()
         {
-            this.template = task.template;
-            this.delay = task.delay;
-            this.tween = tween == null ? tm.GetTemplate(this.template) : tween.Clone(altTarget);
+            return new CompoundTweenTask(this);
         }
 
-        public CompoundTweenTask Clone(GameObject altTarget = null)
-        {
-            return new CompoundTweenTask(this, altTarget);
-        }
-
-        public CompoundTweenTask Clone(TweenManager tm, GameObject altTarget)
-        {
-            return new CompoundTweenTask(this, tm, altTarget);
-        }
-
-        public CompoundTweenTask(string template, float delay)
+        public CompoundTweenTask(string template, float delay, GameObject target = null)
         {
             this.template = template;
             this.delay = delay;
             this.tween = null;
+            this.target = target;
         }
-
-        public CompoundTweenTask(Tween tween, float delay)
+        public CompoundTweenTask(Tween tween, float delay, GameObject target = null)
         {
             tween.ThrowIfNull();
             this.tween = tween;
             this.template = tween.name;
             this.delay = delay;
+            this.target = target;
         }
 
         public void Activate(TweenManager tm)
         {
             if (this.tween == null)
-                this.tween = tm.GetTemplate(template);
-            this.timeRemaining = this.delay;
+                this.tween = tm.GetTemplate(template).Clone(this.target);
+            this.delayRemaining = this.delay;
             this.active = true;
         }
 
@@ -1072,12 +1109,12 @@ namespace Spewnity
             if (!active)
                 return true;
 
-            this.timeRemaining -= Time.deltaTime;
-            if (this.timeRemaining > 0)
+            this.delayRemaining -= Time.deltaTime;
+            if (this.delayRemaining > 0)
                 return false;
 
-            this.timeRemaining = 0;
-            tm.Play(this.tween);
+            this.delayRemaining = 0;
+            tm.Play(this.tween, this.target);
             active = false;
             return true;
         }
@@ -1129,7 +1166,7 @@ namespace Spewnity
             if (prop.isExpanded)
             {
                 GUI.enabled = Application.isPlaying;
-                float x = Helper.GetControlLeft(pos.width);
+                float x = EditorGUIUtility.labelWidth;
                 if (GUI.Button(new Rect(pos.x + x, pos.yMax - 25f, 100f, 20f),
                         new GUIContent("Live Preview", "When application is running, press this to preview the compound tween")))
                 {
@@ -1167,11 +1204,12 @@ namespace Spewnity
             Helper.lastX = 30f;
             Helper.AddLabel(pos, "Task", 90f);
             EditorGUI.indentLevel = 0;
-            Helper.lastX = Helper.GetControlLeft(pos.width);
+            Helper.lastX = EditorGUIUtility.labelWidth;
             float width = pos.width - Helper.lastX;
 
             TweenManager tm = (TweenManager) prop.serializedObject.targetObject;
             SerializedProperty templateProp = prop.FindPropertyRelative("template");
+
             string template = templateProp.stringValue;
             List<string> values = new List<string>();
             int selected = -1;
@@ -1192,11 +1230,17 @@ namespace Spewnity
             }
             values.Insert(0, msg);
 
-            float delayWidth = pos.width > 320f ? width * 0.4f : width * 0.3f;
+            float delayWidth = width * 0.333f; //pos.width > 320f ? width * 0.3f : width * 0.2f;
             string delayLabel = pos.width > 320f ? "delay" : "d";
 
-            selected = Helper.AddPopup(values, selected, pos, width - delayWidth, false);
+            float targetWidth = width * 0.333f; //pos.width > 320f ? width * 0.4f : width * 0.3f;
+            string targetLabel = pos.width > 320f ? "target" : "t";
+
+            Helper.AddField(prop, pos, "target", targetWidth, false, targetLabel.Length > 1 ? 38f : 10f, targetLabel);
+
+            selected = Helper.AddPopup(values, selected, pos, width - delayWidth - targetWidth, false);
             templateProp.stringValue = selected > 0 ? values[selected] : "";
+
             Helper.AddField(prop, pos, "delay", delayWidth, false, delayLabel.Length > 1 ? 30f : 10f, delayLabel);
 
             EditorGUI.indentLevel = indentLevel;
@@ -1219,7 +1263,7 @@ namespace Spewnity
             if (prop.isExpanded && prop.GetParent() is TweenManager)
             {
                 GUI.enabled = Application.isPlaying;
-                float x = Helper.GetControlLeft(pos.width);
+                float x = EditorGUIUtility.labelWidth;
                 if (GUI.Button(new Rect(pos.x + x, pos.yMax - 25f, 100f, 20f),
                         new GUIContent("Live Preview", "When Tween Manager is running, press this to preview the tween")))
                 {
@@ -1279,7 +1323,7 @@ namespace Spewnity
 
             int indentLevel = EditorGUI.indentLevel;
             EditorGUI.indentLevel = 0;
-            float x = Helper.GetControlLeft(pos.width);
+            float x = EditorGUIUtility.labelWidth;
             Rect r = new Rect(pos.x + x, pos.y, pos.width - x, EditorGUIUtility.singleLineHeight);
             bool wasEnabled = tp.enabled;
             tp.enabled = EditorGUI.ToggleLeft(r, "Enabled", tp.enabled);
@@ -1323,7 +1367,7 @@ namespace Spewnity
             Helper.lastX = 30f;
             Helper.AddLabel(pos, prop.displayName, 90f);
             EditorGUI.indentLevel = 0;
-            Helper.lastX = Helper.GetControlLeft(pos.width);
+            Helper.lastX = EditorGUIUtility.labelWidth;
             float adjustedWidth = pos.width - Helper.lastX;
             tp.AddValueFields(value, pos, adjustedWidth, true);
             EditorGUI.indentLevel = indentLevel;
@@ -1364,7 +1408,7 @@ namespace Spewnity
             Helper.lastX = 30f;
             Helper.AddLabel(pos, pos.width > 360 ? "Frozen Axes" : "Frozen", 90f);
             EditorGUI.indentLevel = 0;
-            Helper.lastX = Helper.GetControlLeft(pos.width);
+            Helper.lastX = EditorGUIUtility.labelWidth;
             float adjustedWidth = pos.width - Helper.lastX;
             tp.AddValueFields(prop, pos, adjustedWidth);
             EditorGUI.indentLevel = indentLevel;
@@ -1426,11 +1470,6 @@ namespace Spewnity
             Rect fieldRect = new Rect(pos.x + Helper.lastX, pos.y, width - 5f, pos.height);
             Helper.lastX += width;
             return EditorGUI.Popup(fieldRect, selected, values.ToArray());
-        }
-
-        public static float GetControlLeft(float propertyWidth)
-        {
-            return (propertyWidth < 338f ? EditorGUIUtility.labelWidth : (propertyWidth - 338f) * 0.45f + EditorGUIUtility.labelWidth);
         }
     }
 

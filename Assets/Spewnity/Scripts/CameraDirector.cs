@@ -31,8 +31,8 @@ namespace Spewnity
         public bool shakeFadeOut = true;
         [Tooltip("Lets you preview the camera shake effect, when debugging in the editor, in play mode; just click")]
         public bool previewShake = false;
-        [Tooltip("If true, assumes Camera.main is the camera; otherwise expects this component is attached to a Camera object")]
-        public bool useCameraMain = false;
+        [Tooltip("Assigns the camera to use for this instance; leave blank to use Camera.main")]
+        public Camera cam;
 
         private const float CONTINUOUS_EASING = 4.6f; // Gets us to 99% of move target over duration
         private Transform followTarget;
@@ -42,38 +42,37 @@ namespace Spewnity
         private bool fadingShake = false;
         private bool dollying = false;
         private float shakeTimeRemaining = 0f;
-        private Vector3 camCenter;
-        private Camera cam;
-        private float initialZoom;
+        private Vector3 shakeCenter;
+        private float startZoom;
         private float targetZoom;
         private float zoomTimeRemaining = 0f;
         private float zoomSpeed;
+        private float rotTimeRemaining = 0f;
+        private float targetRot;
+        private float rotSpeed;
+        private float startRot;
 
         void Awake()
         {
             instance = this;
-            UpdateCamera();
+            Init();
         }
 
 #if UNITY_EDITOR
         void OnValidate()
         {
-            UpdateCamera();
+            Init();
         }
 #endif
 
-        private void UpdateCamera()
+        private void Init()
         {
-            cam = (useCameraMain ? Camera.main : gameObject.GetComponent<Camera>());
             if (cam == null)
-            {
-                if (useCameraMain)
-                    throw new UnityException("Cannot locate main camera");
-                else throw new UnityException("Since useCameraMain is disabled, CameraDirector must be attached to the camera GameObject");
-            }
-            else initialZoom = cam.orthographic ? cam.orthographicSize : cam.fieldOfView;
+                cam = Camera.main;
+            startZoom = cam.orthographic ? cam.orthographicSize : cam.fieldOfView;
         }
-        void FixedUpdate()
+
+        void Update()
         {
 #if UNITY_EDITOR			
             if (previewShake)
@@ -85,18 +84,20 @@ namespace Spewnity
             }
 #endif			
 
+            UpdateRotation();
             UpdateZoomLevel();
+
             if (shakeTimeRemaining <= 0f && followTarget == null && dollying == false)
                 return;
 
             UpdateCamCenter();
             Vector2 shake = GetShakeOffset();
             if (!dollying && moveSpeed <= 0f)
-                cam.transform.position = camCenter + (Vector3) shake;
+                cam.transform.position = shakeCenter + (Vector3) shake;
             else
             {
                 float t = CONTINUOUS_EASING * Time.deltaTime / moveSpeed;
-                cam.transform.position = Vector3.Lerp(cam.transform.position, camCenter, t) + (Vector3) shake;
+                cam.transform.position = Vector3.Lerp(cam.transform.position, shakeCenter, t) + (Vector3) shake;
             }
         }
 
@@ -123,11 +124,31 @@ namespace Spewnity
             else cam.fieldOfView = amount;
         }
 
+        private void UpdateRotation()
+        {
+            if (rotTimeRemaining <= 0f)
+                return;
+            rotTimeRemaining -= Time.deltaTime;
+
+            float amount = 0;
+            if (rotTimeRemaining < 0)
+            {
+                rotTimeRemaining = 0;
+                amount = targetRot;
+            }
+            else
+            {
+                float t = 1 - rotTimeRemaining / rotSpeed;
+                amount = Mathf.Lerp(startRot, targetRot, t);
+            }
+
+            cam.transform.localRotation = Quaternion.Euler(0, 0, amount);
+        }
+
         private void UpdateCamCenter()
         {
             if (followTarget != null)
-                camCenter = new Vector3(followTarget.position.x, followTarget.position.y,
-                    (useCameraMain ? Camera.main.transform.position.z : transform.position.z));
+                shakeCenter = new Vector3(followTarget.position.x, followTarget.position.y, cam.transform.position.z);
         }
 
         private Vector2 GetShakeOffset()
@@ -153,9 +174,10 @@ namespace Spewnity
         /// Starts the camera shake as defined by the default properties. 
         /// <see cref="Shake(float,float,bool)"/>
         /// </summary>
-        public void Shake()
+        public CameraDirector Shake()
         {
             Shake(defShakeStrength, defShakeDuration, shakeFadeOut);
+            return this;
         }
 
         /// <summary>
@@ -166,46 +188,66 @@ namespace Spewnity
         /// <param name="shakeStrength">How far the camera can veer off-center +/-. </param>
         /// <param name="shakeDuration">How long the shaking lasts.</param>
         /// <param name="fadeStrength">If true, the strength is linearly reduced over the time of the shaking.</param>
-        public void Shake(float shakeStrength, float shakeDuration, bool fadeStrength = true)
+        public CameraDirector Shake(float shakeStrength, float shakeDuration, bool fadeStrength = true)
         {
             this.shakeStrength = shakeStrength;
             this.shakeDuration = shakeTimeRemaining = shakeDuration;
             fadingShake = fadeStrength;
-            camCenter = (useCameraMain ? Camera.main.transform.position : transform.position);
+            shakeCenter = cam.transform.position;
+            return this;
         }
 
         /// <summary>
         /// Stops any dollying or following of a target. Clears the target.
         /// <para>Does not stop shaking or zooming</para>
         /// </summary>
-        public void StopMoving()
+        public CameraDirector StopMoving()
         {
             followTarget = null;
             dollying = false;
+            return this;
         }
 
         /// <summary>
         /// Stops all camera shaking
         /// </summary>
-        public void StopShaking()
+        public CameraDirector StopShaking()
         {
             shakeTimeRemaining = 0f;
+            return this;
         }
 
         /// <summary>
         /// Stops any active zooming operation.
         /// </summary>
-        public void StopZooming()
+        public CameraDirector StopZooming()
         {
             zoomTimeRemaining = 0f;
+            return this;
+        }
+
+        public CameraDirector StopRotating()
+        {
+            rotTimeRemaining = 0f;
+            return this;
+        }
+
+        public CameraDirector Stop()
+        {
+            StopMoving();
+            StopRotating();
+            StopShaking();
+            StopZooming();
+            return this;
         }
 
         /// <summary>
         /// Resets the zoom level to its initial value.
         /// </summary>
-        public void ResetZoom()
+        public CameraDirector ResetZoom()
         {
             SetZoom(1f);
+            return this;
         }
 
         /// <summary>
@@ -214,11 +256,12 @@ namespace Spewnity
         /// </summary>
         /// <param name="target">The Transform of the GameObject to follow; the camera will center over this object</param>
         /// <param name="speed">The amount of time the camera will take to catch up to the target. Supply 0 if you don't want any camera lag.</param>
-        public void FollowTarget(Transform target, float? speed = null)
+        public CameraDirector FollowTarget(Transform target, float? speed = null)
         {
             StopMoving();
             this.followTarget = target;
             this.moveSpeed = (speed == null ? this.defSpeed : (float) speed);
+            return this;
         }
 
         /// <summary>
@@ -226,11 +269,12 @@ namespace Spewnity
         /// <para>If the CameraDirector was dollying or following a target, it stops doing that.</para>
         /// </summary>
         /// <param name="position">Sets the absolute center point of the camera</param>
-        public void CutTo(Vector2 position)
+        public CameraDirector CutTo(Vector2 position)
         {
             StopMoving();
             cam.transform.position = new Vector3(position.x, position.y, cam.transform.position.z);
-            camCenter = cam.transform.position;
+            shakeCenter = cam.transform.position;
+            return this;
         }
 
         /// <summary>
@@ -240,12 +284,13 @@ namespace Spewnity
         /// </summary>
         /// <param name="position">Sets the desired absolute center point of the camera</param>
         /// <param name="speed">If not provided, uses the default move speed. Using a speed 0 will work the same as CutTo().</param>
-        public void DollyTo(Vector2 position, float? speed = null)
+        public CameraDirector DollyTo(Vector2 position, float? speed = null)
         {
             StopMoving();
-            camCenter = new Vector3(position.x, position.y, cam.transform.position.z);
+            shakeCenter = new Vector3(position.x, position.y, cam.transform.position.z);
             dollying = true;
             this.moveSpeed = (speed == null ? this.defSpeed : (float) speed);
+            return this;
         }
 
         /// <summary>
@@ -254,13 +299,14 @@ namespace Spewnity
         /// <see crf="Zoom"/> for more information
         /// </summary>
         /// <param name="scale">The amount to scale orthographic size or field-of-view. 1 is none.</param>
-        public void SetZoom(float scale)
+        public CameraDirector SetZoom(float scale)
         {
             StopZooming();
-            float amount = initialZoom * scale;
+            float amount = startZoom * scale;
             if (cam.orthographic)
                 cam.orthographicSize = amount;
             else cam.fieldOfView = amount;
+            return this;
         }
 
         /// <summary>
@@ -271,10 +317,32 @@ namespace Spewnity
         /// </summary>
         /// <param name="scale">The amount to scale orthographic size or field-of-view. A value of 2 is zoomed out to show double the view, and 0.5 zoomed in to halve the view. 1 resets to the initial size. </param>
         /// <param name="speed">The amount of time before it reaches the target scale.</param>
-        public void ZoomTo(float scale, float? speed = null)
+        public CameraDirector ZoomTo(float scale, float? speed = null)
         {
             zoomSpeed = zoomTimeRemaining = (speed == null ? this.defSpeed : (float) speed);
-            targetZoom = initialZoom * scale;
+            targetZoom = startZoom * scale;
+            return this;
+        }
+
+        public CameraDirector SetRotation(float angle)
+        {
+            StopRotating();
+            cam.transform.localRotation = Quaternion.Euler(0, 0, angle);
+            return this;
+        }
+
+        public CameraDirector RotateTo(float angle, float? speed = null)
+        {
+            startRot = cam.transform.localEulerAngles.z;
+            rotSpeed = rotTimeRemaining = (speed == null ? this.defSpeed : (float)speed);
+            targetRot = ShortestRotation(startRot, angle);
+            return this;
+        }
+
+        private static float ShortestRotation(float from, float to)
+        {
+            float diff = from - to;
+            return (diff < -180 ? to + 360 : (diff > 180 ? to - 360 : to));
         }
     }
 }

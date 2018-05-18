@@ -16,6 +16,7 @@ using UnityEditorInternal;
 // TODO Should Lerp be clamped for things like Colors?
 // TODO Is it possible to clone a UnityEvent? It might not be necessary but I'd like to be able to clone the TweenEvents object properly.
 // TODO Disabled properties do not show their tooltips
+// TODO Allow SortingGroup as target
 namespace Spewnity
 {
     /// <summary>
@@ -93,11 +94,12 @@ namespace Spewnity
         /// If there are multiple tweens with this name, all will be removed!</para>
         /// </summary>
         /// <param name="tweenName">The unique name of the tween</param>
-        public void Stop(string tweenName)
+        /// <param name="fastForward">Before stopping, fast forwards the playing tween to its end point</param>
+        public void Stop(string tweenName, bool fastForward = false)
         {
             foreach (List<Tween> list in new List<Tween>[] { activeTweens, tweensToAdd })
             {
-                list.ForEach((t) => { if (t.name == tweenName) Stop(t); });
+                list.ForEach((t) => { if (t.name == tweenName) Stop(t, fastForward); });
             }
         }
 
@@ -106,8 +108,14 @@ namespace Spewnity
         /// <para>Note that the end event will not be called</para>
         /// </summary>
         /// <param name="tween">The tween instance</param>
-        public void Stop(Tween tween)
+        /// <param name="fastForward">Before stopping, fast forwards the playing tween to its end point</param>
+        public void Stop(Tween tween, bool fastForward = false)
         {
+            if (fastForward)
+            {
+                tween.timeRemaining = 0f;
+                tween.Apply();
+            }
             activeTweens.Remove(tween);
         }
 
@@ -512,7 +520,7 @@ namespace Spewnity
             }
         }
 
-        private void Apply()
+        internal void Apply()
         {
             float timeRatio = timeRemaining / duration;
 

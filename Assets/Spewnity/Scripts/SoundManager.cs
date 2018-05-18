@@ -16,7 +16,8 @@ namespace Spewnity
 {
     public class SoundManager : MonoBehaviour
     {
-        public const float SEMITONE = 1.0594630943592952646f;
+		// f*s^12 = 2f, s=(2^1/12)=SEMITONE, usage: perfect fifth (exponent = 7th interval + 1) of A(440) = 440*s^8 = ~698 (F)
+        public const float SEMITONE = 1.0594630943592952646f; 
         public static SoundManager instance = null;
 
         public int maxPoolSize = 32;

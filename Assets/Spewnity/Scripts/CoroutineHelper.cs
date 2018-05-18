@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Action = System.Action;
 
 /**
     This provides a simple way to offload coroutine ownership to another GameObject.
@@ -11,11 +12,30 @@ namespace Spewnity
 {
     public class CoroutineHelper : MonoBehaviour
     {
-        public static CoroutineHelper instance;
+        private static CoroutineHelper _instance;
+        public static CoroutineHelper instance
+        {
+            get
+            {
+                if (_instance == null)
+                    _instance = new GameObject("CoroutineHelper").AddComponent<CoroutineHelper>();
+                return _instance;
+            }
+        }
+
+        /**************************************************************************/
 
         void Awake()
         {
-            instance = this;
+            _instance = this;
+        }
+
+        /// <summary>
+        ///  Example: CoroutineHelper.instance.Run(() => MyFunc("MyArg"), 1f);
+        /// </summary>
+        public Coroutine Run(Action action, float delay)
+        {
+            return StartCoroutine(RunAfter(action, delay));
         }
 
         public Coroutine Run(IEnumerator routine)
@@ -31,6 +51,12 @@ namespace Spewnity
         public void StopAll()
         {
             StopAllCoroutines();
+        }
+
+        private IEnumerator RunAfter(Action action, float delay)
+        {
+            yield return new WaitForSecondsRealtime(delay);
+            action();
         }
     }
 }
